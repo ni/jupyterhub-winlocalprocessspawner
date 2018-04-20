@@ -57,34 +57,37 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
 
         auth_state = await self.user.get_auth_state()
         token = pywintypes.HANDLE(auth_state['auth_token'])
-        user_env = None
 
         try:
-            # Will load user variables, if the user profile is loaded
-            user_env = win32profile.CreateEnvironmentBlock(token, False)
-        except Exception as exc:
-            self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
-        else:
-            # If the user profile is loaded, adjust APPDATA so the jupyter runtime files are stored
-            # in a per-user location
-            if 'APPDATA' in user_env:
-                env['APPDATA'] = user_env['APPDATA']
+            user_env = None
 
-        # If the user profile is loaded, set cwd to USERPROFILE
-        if user_env and 'USERPROFILE' in user_env:
-            cwd = user_env['USERPROFILE']
-        else:
-            # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
-            # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
-            # Set CWD to a temp directory, since we failed to load the user profile
-            cwd = mkdtemp()
+            try:
+                # Will load user variables, if the user profile is loaded
+                user_env = win32profile.CreateEnvironmentBlock(token, False)
+            except Exception as exc:
+                self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
+            else:
+                # If the user profile is loaded, adjust APPDATA so the jupyter runtime files are stored
+                # in a per-user location
+                if 'APPDATA' in user_env:
+                    env['APPDATA'] = user_env['APPDATA']
 
-        popen_kwargs = dict(
-            token=token,
-            cwd=cwd
-        )
-        # Detach so the underlying winhandle stays alive
-        token.Detach()
+            # If the user profile is loaded, set cwd to USERPROFILE
+            if user_env and 'USERPROFILE' in user_env:
+                cwd = user_env['USERPROFILE']
+            else:
+                # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
+                # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
+                # Set CWD to a temp directory, since we failed to load the user profile
+                cwd = mkdtemp()
+
+            popen_kwargs = dict(
+                token=token,
+                cwd=cwd
+            )
+        finally:
+            # Detach so the underlying winhandle stays alive
+            token.Detach()
 
         popen_kwargs.update(self.popen_kwargs)
         # don't let user config override env
