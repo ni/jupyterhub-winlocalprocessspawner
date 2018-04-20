@@ -26,16 +26,16 @@ class PopenAsUser(Popen):
         """Create new PopenAsUser instance."""
         self._token = token
 
-        super(PopenAsUser, self).__init__(args, bufsize, executable,
-                                          stdin, stdout, stderr, None, False,
-                                          shell, cwd, env, universal_newlines,
-                                          startupinfo, creationflags, False, False, (),
-                                          encoding=encoding, errors=errors)
+        super().__init__(args, bufsize, executable,
+                         stdin, stdout, stderr, None, False,
+                         shell, cwd, env, universal_newlines,
+                         startupinfo, creationflags, False, False, (),
+                         encoding=encoding, errors=errors)
 
     def __exit__(self, type, value, traceback):
         # Detach to avoid invalidating underlying winhandle
         self._token.Detach()
-        super(PopenAsUser, self).__exit__(self, type, value, traceback)
+        super().__exit__(type, value, traceback)
 
     # Mainly adapted from subprocess._execute_child, with the main exception that this
     # function calls CreateProcessAsUser instead of CreateProcess
