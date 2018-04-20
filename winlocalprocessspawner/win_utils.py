@@ -94,9 +94,11 @@ class PopenAsUser(Popen):
             if hasattr(self, '_devnull'):
                 os.close(self._devnull)
 
-        # Retain the process handle, but close the thread handle
-        self._child_created = True
-        # Popen stores the win handle as an int, not as a PyHandle
-        self._handle = Handle(hp.Detach())
-        self.pid = pid
-        CLOSEHANDLE(ht)
+        try:
+            # Retain the process handle, but close the thread handle
+            self._child_created = True
+            # Popen stores the win handle as an int, not as a PyHandle
+            self._handle = Handle(hp.Detach())
+            self.pid = pid
+        finally:
+            CLOSEHANDLE(ht)
