@@ -60,6 +60,7 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
 
         try:
             user_env = None
+            cwd = None
 
             try:
                 # Will load user variables, if the user profile is loaded
@@ -68,14 +69,12 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
                 self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
             else:
                 # If the user profile is loaded, adjust APPDATA so the jupyter runtime files are stored
-                # in a per-user location
+                # in a per-user location. Also set cwd to %USERPROFILE%
                 if 'APPDATA' in user_env:
                     env['APPDATA'] = user_env['APPDATA']
+                    cwd = user_env['USERPROFILE']
 
-            # If the user profile is loaded, set cwd to USERPROFILE
-            if user_env and 'USERPROFILE' in user_env:
-                cwd = user_env['USERPROFILE']
-            else:
+            if not cwd:
                 # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
                 # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
                 # Set CWD to a temp directory, since we failed to load the user profile
