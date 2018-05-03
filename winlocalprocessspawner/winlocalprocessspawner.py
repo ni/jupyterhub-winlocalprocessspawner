@@ -28,7 +28,7 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
 
     def get_env(self):
         """Get the complete set of environment variables to be set in the spawned process."""
-        win_env_keep = ['SYSTEMROOT', 'APPDATA', 'WINDIR']
+        win_env_keep = ['SYSTEMROOT', 'APPDATA', 'WINDIR', 'USERPROFILE']
 
         env = super().get_env()
         for key in win_env_keep:
@@ -72,6 +72,7 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
                 # in a per-user location. Also set cwd to %USERPROFILE%
                 if 'APPDATA' in user_env:
                     env['APPDATA'] = user_env['APPDATA']
+                    env['USERPROFILE'] = user_env['USERPROFILE']
                     cwd = user_env['USERPROFILE']
 
             if not cwd:
