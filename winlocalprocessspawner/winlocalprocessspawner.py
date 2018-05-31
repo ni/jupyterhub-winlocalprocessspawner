@@ -41,6 +41,7 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         self.port = random_port()
         cmd = []
         env = self.get_env()
+        token = None
 
         cmd.append(sys.executable)
         py_scripts_dir = os.path.join(os.path.dirname(sys.executable), 'Scripts')
@@ -56,7 +57,8 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         self.log.info("Spawning %s", ' '.join(pipes.quote(s) for s in cmd))
 
         auth_state = await self.user.get_auth_state()
-        token = pywintypes.HANDLE(auth_state['auth_token'])
+        if auth_state:
+            token = pywintypes.HANDLE(auth_state['auth_token'])
 
         try:
             user_env = None
@@ -78,8 +80,11 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             if not cwd:
                 # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
                 # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
-                # Set CWD to a temp directory, since we failed to load the user profile
-                cwd = mkdtemp()
+                if self.notebook_dir:
+                    cwd = os.getcwd()
+                else:
+                    # Set CWD to a temp directory, since we failed to load the user profile
+                    cwd = mkdtemp()
 
             popen_kwargs = dict(
                 token=token,
@@ -87,7 +92,8 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             )
         finally:
             # Detach so the underlying winhandle stays alive
-            token.Detach()
+            if token:
+                token.Detach()
 
         popen_kwargs.update(self.popen_kwargs)
         # don't let user config override env
