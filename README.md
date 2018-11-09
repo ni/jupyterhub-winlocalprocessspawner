@@ -19,6 +19,6 @@ pip3 install -e
 To enable, add the following to your jupyterhub file:
 
 ```
-C.JupyterHub.spawner_class = 'winlocalprocessspawner.WinLocalProcessSpawner'
+c.JupyterHub.spawner_class = 'winlocalprocessspawner.WinLocalProcessSpawner'
 ```
 
