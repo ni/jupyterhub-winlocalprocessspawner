@@ -44,7 +44,13 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         token = None
 
         cmd.append(sys.executable)
-        py_scripts_dir = os.path.join(os.path.dirname(sys.executable), 'Scripts')
+        #in virtualenv, exe is in Scripts folder already vs main environment where exe is a python root
+        if hasattr(sys, 'real_prefix'):
+            #in virtual env
+            py_scripts_dir = os.path.dirname(sys.executable)
+        else:
+            #in main env
+            py_scripts_dir = os.path.join(os.path.dirname(sys.executable), 'Scripts')
         cmd.append(os.path.join(py_scripts_dir, "jupyterhub-singleuser"))
 
         cmd.extend(self.get_args())
