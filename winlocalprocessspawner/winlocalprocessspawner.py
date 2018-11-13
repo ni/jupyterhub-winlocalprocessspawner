@@ -78,17 +78,14 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             else:
                 # If the user profile is loaded, adjust APPDATA so the jupyter runtime files are stored
                 # in a per-user location.
-                
-                #If the token is None, the USERPROFILE points at the default directory which is not writable.
-                #this changes the path over to public documents, so at least its a writable location.
-                if 'USERPROFILE' in user_env:
-                    if user_env['USERPROFILE'].lower() == 'c:\\users\\default':
-                        if 'PUBLIC' in user_env:
-                            user_env['USERPROFILE'] = user_env['PUBLIC'] 
-                
                 if 'APPDATA' in user_env:
                     env['APPDATA'] = user_env['APPDATA']
                     env['USERPROFILE'] = user_env['USERPROFILE']
+                else:
+                    #If the 'APPDATA' does not exist, the USERPROFILE points at the default 
+                    #directory which is not writable. this changes the path over to public 
+                    #documents, so at least its a writable location.
+                    user_env['USERPROFILE'] = user_env['PUBLIC']
 
             # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
             # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
