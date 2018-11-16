@@ -43,9 +43,7 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         env = self.get_env()
         token = None
 
-        cmd.append(sys.executable)
-        py_scripts_dir = os.path.join(os.path.dirname(sys.executable), 'Scripts')
-        cmd.append(os.path.join(py_scripts_dir, "jupyterhub-singleuser"))
+        cmd.extend(self.cmd)
 
         cmd.extend(self.get_args())
 
@@ -75,6 +73,11 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
                 if 'APPDATA' in user_env:
                     env['APPDATA'] = user_env['APPDATA']
                     env['USERPROFILE'] = user_env['USERPROFILE']
+                else:
+                    #If the 'APPDATA' does not exist, the USERPROFILE points at the default 
+                    #directory which is not writable. this changes the path over to public 
+                    #documents, so at least its a writable location.
+                    user_env['USERPROFILE'] = user_env['PUBLIC']
 
             # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
             # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
