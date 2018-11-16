@@ -36,58 +36,14 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
                 env[key] = os.environ[key]
         return env
         
-        
-    def get_spawner_cmd(self):
-        """Using the config file, determine the absolute path of the script to run when spawning a new instance"""
-        #config: c.spawner.cmd
-        spawner_cmd=self.cmd
-        #this is just checking for empty settings, 
-        #which admittedly the parent probably fixes for you anyway
-        if spawner_cmd is None or spawner_cmd is '' or spawner_cmd is []:
-            spawner_cmd = 'jupyterhub-singleuser'
-            self.log.debug("no c.spawner.cmd specified, using default jupyterhub-singleuser")
-        
-        #jupyter docs say c.spawner.cmd is allowed to be a list or a string, 
-        #->convert it into a single path string
-        if type(spawner_cmd) is list:
-            #build path up
-            exe_cmd=''
-            for relpath in spawner_cmd:
-                exe_cmd=os.path.join(exe_cmd, relpath)
-        else:
-            exe_cmd=spawner_cmd
-        
-        #now we try to find the script because we need abs path to launch
-        if not os.path.exists(exe_cmd):
-            self.log.debug("cmd provided is not absolute or in the working directory, searching PATH")
-            for path_elem in os.environ['PATH'].split(os.pathsep):
-                #create an absolute path using the PATH var and see if it exists
-                checkpath=os.path.join(path_elem, exe_cmd)
-                if os.path.exists(checkpath):
-                    self.log.debug("cmd found on PATH at %s", path_elem)
-                    #this is the full abs path we've been looking for
-                    exe_cmd=checkpath
-                    break
-            else:
-                self.log.warning("cmd not found on path or in working directory, this will likely fail")
-        else:
-            exe_cmd=os.path.abspath(exe_cmd) #does nothing if already abs
-        
-        #we now have our abs path, add it to the launch cmd set
-        self.log.debug("Spawner will execute: %s", exe_cmd)
-        
-        return exe_cmd
-
     async def start(self):
         """Start the single-user server."""
         self.port = random_port()
         cmd = []
         env = self.get_env()
         token = None
-
-        cmd.append(sys.executable)
         
-        cmd.append(self.get_spawner_cmd())
+        cmd.extend(self.cmd)
 
         cmd.extend(self.get_args())
 
