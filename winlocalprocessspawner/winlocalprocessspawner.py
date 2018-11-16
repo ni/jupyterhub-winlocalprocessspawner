@@ -35,14 +35,14 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             if key in os.environ:
                 env[key] = os.environ[key]
         return env
-        
+
     async def start(self):
         """Start the single-user server."""
         self.port = random_port()
         cmd = []
         env = self.get_env()
         token = None
-        
+
         cmd.extend(self.cmd)
 
         cmd.extend(self.get_args())
