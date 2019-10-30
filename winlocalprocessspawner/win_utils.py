@@ -1,8 +1,14 @@
 import os
 import ctypes
+import logging
 from subprocess import Popen, list2cmdline, Handle
 
 import win32process
+import win32process, win32security, win32service, win32con, win32api, win32event
+
+
+logger = logging.getLogger('winlocalprocessspawner')
+
 
 DWORD = ctypes.c_uint
 HANDLE = DWORD
@@ -78,6 +84,14 @@ class PopenAsUser(Popen):
                                                         env,
                                                         os.fspath(cwd) if cwd is not None else None,
                                                         startupinfo)
+            err = win32api.GetLastError()
+            if err:
+                logger.error("Error %r when calling CreateProcessAsUser executable %s args %s with the \
+                            token %r ", err, executable, args, self._token)
+            else:
+                win32event.WaitForSingleObject(hp, 1000)  # Wait at least one second before checking exit code
+                logger.error("ExitCode %r when calling CreateProcessAsUser executable %s args %s with the \
+                            token %r ", win32process.GetExitCodeProcess(hp), executable, args, self._token)
         finally:
             # Child is launched. Close the parent's copy of those pipe
             # handles that only the child should have open.  You need
