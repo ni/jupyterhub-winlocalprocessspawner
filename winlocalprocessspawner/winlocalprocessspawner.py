@@ -12,6 +12,7 @@ import win32profile
 
 from .win_utils import PopenAsUser
 
+
 class WinLocalProcessSpawner(LocalProcessSpawner):
     """
     A Spawner that start single-user servers as local Windows processes
@@ -58,45 +59,40 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         if auth_state:
             token = pywintypes.HANDLE(auth_state['auth_token'])
 
+        user_env = None
+        cwd = None
+
         try:
-            user_env = None
-            cwd = None
-
-            try:
-                # Will load user variables, if the user profile is loaded
-                user_env = win32profile.CreateEnvironmentBlock(token, False)
-            except Exception as exc:
-                self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
+            # Will load user variables, if the user profile is loaded
+            user_env = win32profile.CreateEnvironmentBlock(token, False)
+        except Exception as exc:
+            self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
+        else:
+            # If the user profile is loaded, adjust APPDATA so the jupyter runtime files are stored
+            # in a per-user location.
+            if 'APPDATA' in user_env:
+                env['APPDATA'] = user_env['APPDATA']
+                env['USERPROFILE'] = user_env['USERPROFILE']
             else:
-                # If the user profile is loaded, adjust APPDATA so the jupyter runtime files are stored
-                # in a per-user location.
-                if 'APPDATA' in user_env:
-                    env['APPDATA'] = user_env['APPDATA']
-                    env['USERPROFILE'] = user_env['USERPROFILE']
-                else:
-                    #If the 'APPDATA' does not exist, the USERPROFILE points at the default 
-                    #directory which is not writable. this changes the path over to public 
-                    #documents, so at least its a writable location.
-                    user_env['USERPROFILE'] = user_env['PUBLIC']
+                #If the 'APPDATA' does not exist, the USERPROFILE points at the default
+                #directory which is not writable. this changes the path over to public
+                #documents, so at least its a writable location.
+                user_env['USERPROFILE'] = user_env['PUBLIC']
 
-            # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
-            # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
-            if self.notebook_dir:
-                cwd = os.getcwd()
-            elif env['APPDATA']:
-                cwd = user_env['USERPROFILE']
-            else:
-                # Set CWD to a temp directory, since we failed to load the user profile
-                cwd = mkdtemp()
+        # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
+        # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
+        if self.notebook_dir:
+            cwd = os.getcwd()
+        elif env['APPDATA']:
+            cwd = user_env['USERPROFILE']
+        else:
+            # Set CWD to a temp directory, since we failed to load the user profile
+            cwd = mkdtemp()
 
-            popen_kwargs = dict(
-                token=token,
-                cwd=cwd
-            )
-        finally:
-            # Detach so the underlying winhandle stays alive
-            if token:
-                token.Detach()
+        popen_kwargs = dict(
+            token=token,
+            cwd=cwd,
+        )
 
         popen_kwargs.update(self.popen_kwargs)
         # don't let user config override env
@@ -109,9 +105,13 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             self.log.error("Permission denied trying to run %r. Does %s have access to this file?",
                            script, self.user.name,
                           )
+            if token:
+                token.Detach()
             raise
 
         self.pid = self.proc.pid
+        if token:
+            token.Detach()
 
         if self.__class__ is not LocalProcessSpawner:
             # subclasses may not pass through return value of super().start,
