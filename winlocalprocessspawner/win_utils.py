@@ -131,7 +131,6 @@ class PopenAsUser(Popen):
 
     def __exit__(self, type, value, traceback):
         # Detach to avoid invalidating underlying winhandle
-        self._token.Detach()
         super().__exit__(type, value, traceback)
 
     # Mainly adapted from subprocess._execute_child, with the main exception that this
