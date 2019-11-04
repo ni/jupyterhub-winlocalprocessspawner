@@ -17,9 +17,6 @@ CLOSEHANDLE = ctypes.windll.kernel32.CloseHandle
 CLOSEHANDLE.argtypes = [HANDLE]
 CLOSEHANDLE.restype = BOOL
 
-
-
-def setup_sacl(userGroupSid):
 GENERIC_ACCESS = (
     win32con.GENERIC_READ
     | win32con.GENERIC_WRITE
@@ -52,59 +49,64 @@ DESKTOP_ALL = (
     | win32con.DESKTOP_JOURNALPLAYBACK
     | win32con.DESKTOP_JOURNALRECORD
     | win32con.DESKTOP_READOBJECTS
-    | win32con.DESKTOP_SWITCHDESKTOP
+    | win32con.DESKTOP_SWITCh_desktop
     | win32con.DESKTOP_WRITEOBJECTS
     | win32con.DELETE
     | win32con.READ_CONTROL
     | win32con.WRITE_DAC
     | win32con.WRITE_OWNER
 )
+
+
+def setup_sacl(user_group_sid):
     """ Without this setup, the single user server will likely fail with either Error 0x0000142 or
     ExitCode -1073741502. This sets up access for the given user to the WinSta (Window Station)
     and Desktop objects.
     """
 
     # Set access rights to window station
-    hWinSta = win32service.OpenWindowStation("winsta0", False, win32con.READ_CONTROL | \
-                                        win32con.WRITE_DAC)
+    h_win_sta = win32service.OpenWindowStation("winsta0", False, win32con.READ_CONTROL |
+                                               win32con.WRITE_DAC)
     # Get security descriptor by winsta0-handle
-    secDescWinSta = win32security.GetUserObjectSecurity(hWinSta,
-                   win32security.OWNER_SECURITY_INFORMATION
-                   | win32security.DACL_SECURITY_INFORMATION
-                   | win32con.GROUP_SECURITY_INFORMATION)
+    sec_desc_win_sta = win32security.GetUserObjectSecurity(h_win_sta,
+                                                           win32security.OWNER_SECURITY_INFORMATION
+                                                           | win32security.DACL_SECURITY_INFORMATION
+                                                           | win32con.GROUP_SECURITY_INFORMATION)
     # Get DACL from security descriptor
-    daclWinSta = secDescWinSta.GetSecurityDescriptorDacl()
-    if daclWinSta is None:
-     # Create DACL if not exisiting
-     daclWinSta = win32security.ACL()
+    dacl_win_sta = sec_desc_win_sta.GetSecurityDescriptorDacl()
+    if dacl_win_sta is None:
+        # Create DACL if not exisiting
+        dacl_win_sta = win32security.ACL()
     # Add ACEs to DACL for specific user group
-    daclWinSta.AddAccessAllowedAce(win32security.ACL_REVISION_DS, GENERIC_ACCESS, userGroupSid)
-    daclWinSta.AddAccessAllowedAce(win32security.ACL_REVISION_DS, WINSTA_ALL, userGroupSid)
+    dacl_win_sta.AddAccessAllowedAce(win32security.ACL_REVISION_DS, GENERIC_ACCESS, user_group_sid)
+    dacl_win_sta.AddAccessAllowedAce(win32security.ACL_REVISION_DS, WINSTA_ALL, user_group_sid)
     # Set modified DACL for winsta0
-    win32security.SetSecurityInfo(hWinSta, win32security.SE_WINDOW_OBJECT,
-            win32security.DACL_SECURITY_INFORMATION, None, None, daclWinSta, None)
+    win32security.SetSecurityInfo(h_win_sta, win32security.SE_WINDOW_OBJECT,
+                                  win32security.DACL_SECURITY_INFORMATION, None,
+                                  None, dacl_win_sta, None)
 
     # Set access rights to desktop
-    hDesktop = win32service.OpenDesktop("default", 0, False, win32con.READ_CONTROL
-                  | win32con.WRITE_DAC
-                  | win32con.DESKTOP_WRITEOBJECTS
-                  | win32con.DESKTOP_READOBJECTS)
+    h_desktop = win32service.OpenDesktop("default", 0, False, win32con.READ_CONTROL
+                                         | win32con.WRITE_DAC
+                                         | win32con.DESKTOP_WRITEOBJECTS
+                                         | win32con.DESKTOP_READOBJECTS)
     # Get security descriptor by desktop-handle
-    secDescDesktop = win32security.GetUserObjectSecurity(hDesktop,
-                    win32security.OWNER_SECURITY_INFORMATION
-                    | win32security.DACL_SECURITY_INFORMATION
-                    | win32con.GROUP_SECURITY_INFORMATION)
+    sec_desc_desktop = win32security.GetUserObjectSecurity(h_desktop,
+                                                           win32security.OWNER_SECURITY_INFORMATION
+                                                           | win32security.DACL_SECURITY_INFORMATION
+                                                           | win32con.GROUP_SECURITY_INFORMATION)
     # Get DACL from security descriptor
-    daclDesktop = secDescDesktop.GetSecurityDescriptorDacl()
-    if daclDesktop is None:
-     #create DACL if not exisiting
-     daclDesktop = win32security.ACL()
+    dacl_desktop = sec_desc_desktop.GetSecurityDescriptorDacl()
+    if dacl_desktop is None:
+        #create DACL if not exisiting
+        dacl_desktop = win32security.ACL()
     # Add ACEs to DACL for specific user group
-    daclDesktop.AddAccessAllowedAce(win32security.ACL_REVISION_DS, GENERIC_ACCESS, userGroupSid)
-    daclDesktop.AddAccessAllowedAce(win32security.ACL_REVISION_DS, DESKTOP_ALL, userGroupSid)
+    dacl_desktop.AddAccessAllowedAce(win32security.ACL_REVISION_DS, GENERIC_ACCESS, user_group_sid)
+    dacl_desktop.AddAccessAllowedAce(win32security.ACL_REVISION_DS, DESKTOP_ALL, user_group_sid)
     # Set modified DACL for desktop
-    win32security.SetSecurityInfo(hDesktop, win32security.SE_WINDOW_OBJECT,
-            win32security.DACL_SECURITY_INFORMATION, None, None, daclDesktop, None)
+    win32security.SetSecurityInfo(h_desktop, win32security.SE_WINDOW_OBJECT,
+                                  win32security.DACL_SECURITY_INFORMATION, None,
+                                  None, dacl_desktop, None)
 
 
 class PopenAsUser(Popen):
