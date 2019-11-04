@@ -143,8 +143,9 @@ class PopenAsUser(Popen):
             comspec = os.environ.get("COMSPEC", "cmd.exe")
             args = '{} /c "{}"'.format(comspec, args)
 
-        sid, _ = win32security.GetTokenInformation(self._token, win32security.TokenUser)
-        setup_sacl(sid)
+        if self._token:
+            sid, _ = win32security.GetTokenInformation(self._token, win32security.TokenUser)
+            setup_sacl(sid)
 
         # Start the process
         try:

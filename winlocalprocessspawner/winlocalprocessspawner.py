@@ -105,11 +105,13 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             self.log.error("Permission denied trying to run %r. Does %s have access to this file?",
                            script, self.user.name,
                           )
-            token.Detach()
+            if token:
+                token.Detach()
             raise
 
         self.pid = self.proc.pid
-        token.Detach()
+        if token:
+            token.Detach()
 
         if self.__class__ is not LocalProcessSpawner:
             # subclasses may not pass through return value of super().start,
