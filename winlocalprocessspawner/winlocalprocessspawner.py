@@ -68,7 +68,9 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         except Exception as exc:
             self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
         else:
-            env.update(user_env)
+            # Only load user environment if we hold a valid auth token
+            if token:
+                env.update(user_env)
             if not 'APPDATA' in user_env:
                 #If the 'APPDATA' does not exist, the USERPROFILE points at the default
                 #directory which is not writable. this changes the path over to public
