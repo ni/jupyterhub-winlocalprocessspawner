@@ -29,7 +29,7 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
 
     def get_env(self):
         """Get the complete set of environment variables to be set in the spawned process."""
-        win_env_keep = ['SYSTEMROOT', 'APPDATA', 'WINDIR', 'USERPROFILE']
+        win_env_keep = ['SYSTEMROOT', 'APPDATA', 'WINDIR', 'USERPROFILE', 'TEMP']
 
         env = super().get_env()
         for key in win_env_keep:
