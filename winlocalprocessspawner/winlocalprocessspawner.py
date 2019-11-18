@@ -68,12 +68,8 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         except Exception as exc:
             self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
         else:
-            # If the user profile is loaded, adjust APPDATA so the jupyter runtime files are stored
-            # in a per-user location.
-            if 'APPDATA' in user_env:
-                env['APPDATA'] = user_env['APPDATA']
-                env['USERPROFILE'] = user_env['USERPROFILE']
-            else:
+            env.update(user_env)
+            if not 'APPDATA' in user_env:
                 #If the 'APPDATA' does not exist, the USERPROFILE points at the default
                 #directory which is not writable. this changes the path over to public
                 #documents, so at least its a writable location.
