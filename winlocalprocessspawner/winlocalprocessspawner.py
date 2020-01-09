@@ -10,7 +10,7 @@ from jupyterhub.utils import random_port
 import pywintypes
 import win32profile
 
-from .win_utils import PopenAsUser
+from .win_utils import PopenAsUser, pid_exists
 
 
 class WinLocalProcessSpawner(LocalProcessSpawner):
@@ -123,3 +123,32 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             self.db.commit()
 
         return (self.ip or '127.0.0.1', self.port)
+
+    async def poll(self):
+        """Poll the spawned process to see if it is still running.
+        If the process is still running, we return None. If it is not running,
+        we return the exit code of the process if we have access to it, or 0 otherwise.
+        """
+        # if we started the process, poll with Popen
+        if self.proc is not None:
+            status = self.proc.poll()
+            if status is not None:
+                # clear state if the process is done
+                self.clear_state()
+            return status
+
+        # if we resumed from stored state,
+        # we don't have the Popen handle anymore, so rely on self.pid
+        if not self.pid:
+            # no pid, not running
+            self.clear_state()
+            return 0
+
+        # Check if PID exists
+        alive = pid_exists(self.pid)
+        if not alive:
+            self.clear_state()
+            return 0
+        else:
+            return None
+ 
