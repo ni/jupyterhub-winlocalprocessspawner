@@ -3,7 +3,7 @@ import ctypes
 import logging
 from subprocess import Popen, list2cmdline, Handle
 
-import win32process, win32security, win32service, win32con, win32api, win32event
+import win32process, win32security, win32service, win32con, win32api, win32event, winerror
 
 
 logger = logging.getLogger('winlocalprocessspawner')
@@ -228,8 +228,7 @@ def pid_exists(pid):
 
     process = kernel32.OpenProcess(win32event.SYNCHRONIZE, 0, pid)
     if not process:
-        err = kernel32.GetLastError()
-        if err == 5:
+        if kernel32.GetLastError() == winerror.ERROR_ACCESS_DENIED:
             # Access is denied. This means the process exists!
             return True
         return False
@@ -237,8 +236,7 @@ def pid_exists(pid):
     ec = ExitCodeProcess()
     out = kernel32.GetExitCodeProcess(process, ctypes.byref(ec))
     if not out:
-        err = kernel32.GetLastError()
-        if err == 5:
+        if kernel32.GetLastError() == winerror.ERROR_ACCESS_DENIED:
             # Access is denied. This means the process exists!
             kernel32.CloseHandle(process)
             return True
