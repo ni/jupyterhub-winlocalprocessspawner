@@ -4,6 +4,7 @@ import logging
 from subprocess import Popen, list2cmdline, Handle
 
 import win32process, win32security, win32service, win32con, win32api, win32event
+from win32event import SYNCHRONIZE
 
 
 logger = logging.getLogger('winlocalprocessspawner')
@@ -212,3 +213,43 @@ class PopenAsUser(Popen):
             self.pid = pid
         finally:
             CLOSEHANDLE(ht)
+
+HANDLE = ctypes.c_void_p
+DWORD = ctypes.c_ulong
+LPDWORD = ctypes.POINTER(DWORD)
+            
+class ExitCodeProcess(ctypes.Structure):
+    _fields_ = [ ('hProcess', HANDLE),
+        ('lpExitCode', LPDWORD)]
+
+
+def pid_exists(pid):
+    """Check whether a process with the given pid exists. Works on Windows only. 
+    Works even if the process is not owned by the current user."""
+    kernel32 = ctypes.windll.kernel32
+
+    process = kernel32.OpenProcess(SYNCHRONIZE, 0, pid)
+    if not process:
+        err = kernel32.GetLastError()
+        if err == 5:
+            # Access is denied. This means the process exists!
+            return True
+        return False
+
+    ec = ExitCodeProcess()
+    out = kernel32.GetExitCodeProcess(process, ctypes.byref(ec))
+    if not out:
+        err = kernel32.GetLastError()
+        if err == 5:
+            # Access is denied. This means the process exists!
+            kernel32.CloseHandle(process)
+            return True
+        kernel32.CloseHandle(process)
+        return False
+    elif bool(ec.lpExitCode):
+        # There is an exit code, it quit
+        kernel32.CloseHandle(process)
+        return False
+    # No exit code, it's running.
+    kernel32.CloseHandle(process)
+    return True
