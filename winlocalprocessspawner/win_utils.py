@@ -4,7 +4,6 @@ import logging
 from subprocess import Popen, list2cmdline, Handle
 
 import win32process, win32security, win32service, win32con, win32api, win32event
-from win32event import SYNCHRONIZE
 
 
 logger = logging.getLogger('winlocalprocessspawner')
@@ -214,13 +213,12 @@ class PopenAsUser(Popen):
         finally:
             CLOSEHANDLE(ht)
 
-HANDLE = ctypes.c_void_p
-DWORD = ctypes.c_ulong
-LPDWORD = ctypes.POINTER(DWORD)
             
 class ExitCodeProcess(ctypes.Structure):
-    _fields_ = [ ('hProcess', HANDLE),
-        ('lpExitCode', LPDWORD)]
+    _fields_ = [
+        ('hProcess', ctypes.c_void_p),  # HANDLE
+        ('lpExitCode', ctypes.POINTER(ctypes.c_ulong))  # LPDWORD
+    ]
 
 
 def pid_exists(pid):
@@ -228,7 +226,7 @@ def pid_exists(pid):
     Works even if the process is not owned by the current user."""
     kernel32 = ctypes.windll.kernel32
 
-    process = kernel32.OpenProcess(SYNCHRONIZE, 0, pid)
+    process = kernel32.OpenProcess(win32event.SYNCHRONIZE, 0, pid)
     if not process:
         err = kernel32.GetLastError()
         if err == 5:
