@@ -57,7 +57,9 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
 
         auth_state = await self.user.get_auth_state()
         if auth_state:
-            token = pywintypes.HANDLE(auth_state['auth_token'])
+            token = auth_state.get('auth_token')
+            if token:
+                token = pywintypes.HANDLE(token)
 
         user_env = None
         cwd = None
