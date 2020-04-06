@@ -186,8 +186,15 @@ class PopenAsUser(Popen):
                             token %r ", err, executable, args, self._token)
             else:
                 win32event.WaitForSingleObject(hp, 1000)  # Wait at least one second before checking exit code
-                logger.error("ExitCode %r when calling CreateProcessAsUser executable %s args %s with the \
-                            token %r ", win32process.GetExitCodeProcess(hp), executable, args, self._token)
+                exit_code = win32process.GetExitCodeProcess(hp)
+                if exit_code != win32con.STILL_ACTIVE:
+                    logger.error(
+                        "ExitCode %r when calling CreateProcessAsUser executable %s args %s with the token %r ",
+                        win32process.GetExitCodeProcess(hp),
+                        executable,
+                        args,
+                        self._token
+                    )
         finally:
             # Child is launched. Close the parent's copy of those pipe
             # handles that only the child should have open.  You need
