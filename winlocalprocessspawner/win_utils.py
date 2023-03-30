@@ -143,7 +143,9 @@ class PopenAsUser(Popen):
                        p2cread, p2cwrite,
                        c2pread, c2pwrite,
                        errread, errwrite,
-                       unused_restore_signals, unused_start_new_session):
+                       unused_restore_signals,
+                       unused_gid, unused_gids, unused_uid, unused_umask,
+                       unused_start_new_session):
         """Execute program"""
 
         assert not pass_fds, "pass_fds not supported on Windows."
