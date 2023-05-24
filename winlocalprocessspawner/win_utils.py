@@ -4,7 +4,7 @@ import logging
 from subprocess import Popen, list2cmdline, Handle
 
 import win32process, win32security, win32service, win32con, win32api, win32event
-
+import sys
 
 logger = logging.getLogger('winlocalprocessspawner')
 
@@ -137,15 +137,44 @@ class PopenAsUser(Popen):
 
     # Mainly adapted from subprocess._execute_child, with the main exception that this
     # function calls CreateProcessAsUser instead of CreateProcess
-    def _execute_child(self, args, executable, preexec_fn, close_fds,
+    if sys.version_info >= (3, 9):
+        def _execute_child(self, args, executable, preexec_fn, close_fds,
+                        pass_fds, cwd, env,
+                        startupinfo, creationflags, shell,
+                        p2cread, p2cwrite,
+                        c2pread, c2pwrite,
+                        errread, errwrite,
+                        unused_restore_signals,
+                        unused_gid, unused_gids, unused_uid, unused_umask,
+                        unused_start_new_session):
+            self.do_execute_child(self, args, executable, preexec_fn, close_fds,
+                             pass_fds, cwd, env,
+                             startupinfo, creationflags, shell,
+                             p2cread, p2cwrite,
+                             c2pread, c2pwrite,
+                             errread, errwrite)
+    else:
+        def _execute_child(self, args, executable, preexec_fn, close_fds,
                        pass_fds, cwd, env,
                        startupinfo, creationflags, shell,
                        p2cread, p2cwrite,
                        c2pread, c2pwrite,
                        errread, errwrite,
                        unused_restore_signals,
-                       unused_gid, unused_gids, unused_uid, unused_umask,
-                       unused_start_new_session):
+                       unused_gid, unused_start_new_session):
+            self.do_execute_child(self, args, executable, preexec_fn, close_fds,
+                             pass_fds, cwd, env,
+                             startupinfo, creationflags, shell,
+                             p2cread, p2cwrite,
+                             c2pread, c2pwrite,
+                             errread, errwrite)
+
+    def do_execute_child(self, args, executable, preexec_fn, close_fds,
+                       pass_fds, cwd, env,
+                       startupinfo, creationflags, shell,
+                       p2cread, p2cwrite,
+                       c2pread, c2pwrite,
+                       errread, errwrite):
         """Execute program"""
 
         assert not pass_fds, "pass_fds not supported on Windows."
