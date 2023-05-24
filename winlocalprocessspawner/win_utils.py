@@ -160,8 +160,7 @@ class PopenAsUser(Popen):
                        p2cread, p2cwrite,
                        c2pread, c2pwrite,
                        errread, errwrite,
-                       unused_restore_signals,
-                       unused_gid, unused_start_new_session):
+                       unused_restore_signals, unused_start_new_session):
             self.do_execute_child(self, args, executable, preexec_fn, close_fds,
                              pass_fds, cwd, env,
                              startupinfo, creationflags, shell,
