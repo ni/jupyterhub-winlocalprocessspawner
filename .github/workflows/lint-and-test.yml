@@ -23,6 +23,6 @@ jobs:
       - name: Install ni-python-styleguide
         run: python -m pip install ni-python-styleguide
 
-      - name: Run ni-python-styleguide
-        run: python -m ni-python-styleguide lint winlocalprocessspawner
+      - name: Lint using ni-python-styleguide
+        run: ni-python-styleguide lint winlocalprocessspawner/
         
