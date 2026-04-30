@@ -1,10 +1,6 @@
-"""
-Tests for winlocalprocessspawner.
-"""
+"""Tests for winlocalprocessspawner."""
 
 
 def test_placeholder():
-    """
-    Placeholder to ensure that pytest is functioning.
-    """
+    """Placeholder to ensure that pytest is functioning."""
     pass
