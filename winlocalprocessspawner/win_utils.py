@@ -1,12 +1,19 @@
-import os
+"""Windows process-launching helpers for running JupyterHub single-user servers as another user."""
+
 import ctypes
 import logging
-from subprocess import Popen, list2cmdline, Handle
-
-import win32process, win32security, win32service, win32con, win32api, win32event
+import os
 import sys
+from subprocess import Handle, Popen, list2cmdline
 
-logger = logging.getLogger('winlocalprocessspawner')
+import win32api
+import win32con
+import win32event
+import win32process
+import win32security
+import win32service
+
+logger = logging.getLogger("winlocalprocessspawner")
 
 
 DWORD = ctypes.c_uint
@@ -18,10 +25,7 @@ CLOSEHANDLE.argtypes = [HANDLE]
 CLOSEHANDLE.restype = BOOL
 
 GENERIC_ACCESS = (
-    win32con.GENERIC_READ
-    | win32con.GENERIC_WRITE
-    | win32con.GENERIC_EXECUTE
-    | win32con.GENERIC_ALL
+    win32con.GENERIC_READ | win32con.GENERIC_WRITE | win32con.GENERIC_EXECUTE | win32con.GENERIC_ALL
 )
 
 WINSTA_ALL = (
@@ -59,19 +63,22 @@ DESKTOP_ALL = (
 
 
 def setup_sacl(user_group_sid):
-    """ Without this setup, the single user server will likely fail with either Error 0x0000142 or
-    ExitCode -1073741502. This sets up access for the given user to the WinSta (Window Station)
-    and Desktop objects.
-    """
+    """Sets up access for the given user to the WinSta (Window Station) and Desktop objects.
 
+    Without this setup, the single user server will likely fail with either Error 0x0000142 or
+    ExitCode -1073741502.
+    """
     # Set access rights to window station
-    h_win_sta = win32service.OpenWindowStation("winsta0", False, win32con.READ_CONTROL |
-                                               win32con.WRITE_DAC)
+    h_win_sta = win32service.OpenWindowStation(
+        "winsta0", False, win32con.READ_CONTROL | win32con.WRITE_DAC
+    )
     # Get security descriptor by winsta0-handle
-    sec_desc_win_sta = win32security.GetUserObjectSecurity(h_win_sta,
-                                                           win32security.OWNER_SECURITY_INFORMATION
-                                                           | win32security.DACL_SECURITY_INFORMATION
-                                                           | win32con.GROUP_SECURITY_INFORMATION)
+    sec_desc_win_sta = win32security.GetUserObjectSecurity(
+        h_win_sta,
+        win32security.OWNER_SECURITY_INFORMATION
+        | win32security.DACL_SECURITY_INFORMATION
+        | win32con.GROUP_SECURITY_INFORMATION,
+    )
     # Get DACL from security descriptor
     dacl_win_sta = sec_desc_win_sta.GetSecurityDescriptorDacl()
     if dacl_win_sta is None:
@@ -81,56 +88,105 @@ def setup_sacl(user_group_sid):
     dacl_win_sta.AddAccessAllowedAce(win32security.ACL_REVISION_DS, GENERIC_ACCESS, user_group_sid)
     dacl_win_sta.AddAccessAllowedAce(win32security.ACL_REVISION_DS, WINSTA_ALL, user_group_sid)
     # Set modified DACL for winsta0
-    win32security.SetSecurityInfo(h_win_sta, win32security.SE_WINDOW_OBJECT,
-                                  win32security.DACL_SECURITY_INFORMATION, None,
-                                  None, dacl_win_sta, None)
+    win32security.SetSecurityInfo(
+        h_win_sta,
+        win32security.SE_WINDOW_OBJECT,
+        win32security.DACL_SECURITY_INFORMATION,
+        None,
+        None,
+        dacl_win_sta,
+        None,
+    )
 
     # Set access rights to desktop
-    h_desktop = win32service.OpenDesktop("default", 0, False, win32con.READ_CONTROL
-                                         | win32con.WRITE_DAC
-                                         | win32con.DESKTOP_WRITEOBJECTS
-                                         | win32con.DESKTOP_READOBJECTS)
+    h_desktop = win32service.OpenDesktop(
+        "default",
+        0,
+        False,
+        win32con.READ_CONTROL
+        | win32con.WRITE_DAC
+        | win32con.DESKTOP_WRITEOBJECTS
+        | win32con.DESKTOP_READOBJECTS,
+    )
     # Get security descriptor by desktop-handle
-    sec_desc_desktop = win32security.GetUserObjectSecurity(h_desktop,
-                                                           win32security.OWNER_SECURITY_INFORMATION
-                                                           | win32security.DACL_SECURITY_INFORMATION
-                                                           | win32con.GROUP_SECURITY_INFORMATION)
+    sec_desc_desktop = win32security.GetUserObjectSecurity(
+        h_desktop,
+        win32security.OWNER_SECURITY_INFORMATION
+        | win32security.DACL_SECURITY_INFORMATION
+        | win32con.GROUP_SECURITY_INFORMATION,
+    )
     # Get DACL from security descriptor
     dacl_desktop = sec_desc_desktop.GetSecurityDescriptorDacl()
     if dacl_desktop is None:
-        #create DACL if not exisiting
+        # create DACL if not exisiting
         dacl_desktop = win32security.ACL()
     # Add ACEs to DACL for specific user group
     dacl_desktop.AddAccessAllowedAce(win32security.ACL_REVISION_DS, GENERIC_ACCESS, user_group_sid)
     dacl_desktop.AddAccessAllowedAce(win32security.ACL_REVISION_DS, DESKTOP_ALL, user_group_sid)
     # Set modified DACL for desktop
-    win32security.SetSecurityInfo(h_desktop, win32security.SE_WINDOW_OBJECT,
-                                  win32security.DACL_SECURITY_INFORMATION, None,
-                                  None, dacl_desktop, None)
+    win32security.SetSecurityInfo(
+        h_desktop,
+        win32security.SE_WINDOW_OBJECT,
+        win32security.DACL_SECURITY_INFORMATION,
+        None,
+        None,
+        dacl_desktop,
+        None,
+    )
 
 
 class PopenAsUser(Popen):
-    """
-    Popen implementation that launches new process using the windows auth token provided.
+    """Popen implementation that launches new process using the windows auth token provided.
+
     This is needed to be able to launch a process as another user.
     """
 
-    def __init__(self, args, bufsize=-1, executable=None,
-                 stdin=None, stdout=None, stderr=None,
-                 shell=False, cwd=None, env=None, universal_newlines=False,
-                 startupinfo=None, creationflags=0, *, encoding=None,
-                 errors=None, token=None):
+    def __init__(
+        self,
+        args,
+        bufsize=-1,
+        executable=None,
+        stdin=None,
+        stdout=None,
+        stderr=None,
+        shell=False,
+        cwd=None,
+        env=None,
+        universal_newlines=False,
+        startupinfo=None,
+        creationflags=0,
+        *,
+        encoding=None,
+        errors=None,
+        token=None,
+    ):
         """Create new PopenAsUser instance."""
         self._token = token
 
-        super().__init__(args, bufsize, executable,
-                         stdin, stdout, stderr, None, False,
-                         shell, cwd, env, universal_newlines,
-                         startupinfo, creationflags, False, False, (),
-                         encoding=encoding, errors=errors)
+        super().__init__(
+            args,
+            bufsize,
+            executable,
+            stdin,
+            stdout,
+            stderr,
+            None,
+            False,
+            shell,
+            cwd,
+            env,
+            universal_newlines,
+            startupinfo,
+            creationflags,
+            False,
+            False,
+            (),
+            encoding=encoding,
+            errors=errors,
+        )
 
     def __exit__(self, type, value, traceback):
-        # Detach to avoid invalidating underlying winhandle
+        """Detach to avoid invalidating underlying winhandle."""
         if self._token:
             self._token.Detach()
         super().__exit__(type, value, traceback)
@@ -138,44 +194,113 @@ class PopenAsUser(Popen):
     # Mainly adapted from subprocess._execute_child, with the main exception that this
     # function calls CreateProcessAsUser instead of CreateProcess
     if sys.version_info >= (3, 9):
-        def _execute_child(self, args, executable, preexec_fn, close_fds,
-                        pass_fds, cwd, env,
-                        startupinfo, creationflags, shell,
-                        p2cread, p2cwrite,
-                        c2pread, c2pwrite,
-                        errread, errwrite,
-                        unused_restore_signals,
-                        unused_gid, unused_gids, unused_uid, unused_umask,
-                        unused_start_new_session):
-            self.do_execute_child(args, executable, preexec_fn, close_fds,
-                             pass_fds, cwd, env,
-                             startupinfo, creationflags, shell,
-                             p2cread, p2cwrite,
-                             c2pread, c2pwrite,
-                             errread, errwrite)
+
+        def _execute_child(
+            self,
+            args,
+            executable,
+            preexec_fn,
+            close_fds,
+            pass_fds,
+            cwd,
+            env,
+            startupinfo,
+            creationflags,
+            shell,
+            p2cread,
+            p2cwrite,
+            c2pread,
+            c2pwrite,
+            errread,
+            errwrite,
+            unused_restore_signals,
+            unused_gid,
+            unused_gids,
+            unused_uid,
+            unused_umask,
+            unused_start_new_session,
+        ):
+            self.do_execute_child(
+                args,
+                executable,
+                preexec_fn,
+                close_fds,
+                pass_fds,
+                cwd,
+                env,
+                startupinfo,
+                creationflags,
+                shell,
+                p2cread,
+                p2cwrite,
+                c2pread,
+                c2pwrite,
+                errread,
+                errwrite,
+            )
+
     else:
-        def _execute_child(self, args, executable, preexec_fn, close_fds,
-                       pass_fds, cwd, env,
-                       startupinfo, creationflags, shell,
-                       p2cread, p2cwrite,
-                       c2pread, c2pwrite,
-                       errread, errwrite,
-                       unused_restore_signals, unused_start_new_session):
-            self.do_execute_child(args, executable, preexec_fn, close_fds,
-                             pass_fds, cwd, env,
-                             startupinfo, creationflags, shell,
-                             p2cread, p2cwrite,
-                             c2pread, c2pwrite,
-                             errread, errwrite)
 
-    def do_execute_child(self, args, executable, preexec_fn, close_fds,
-                       pass_fds, cwd, env,
-                       startupinfo, creationflags, shell,
-                       p2cread, p2cwrite,
-                       c2pread, c2pwrite,
-                       errread, errwrite):
-        """Execute program"""
+        def _execute_child(
+            self,
+            args,
+            executable,
+            preexec_fn,
+            close_fds,
+            pass_fds,
+            cwd,
+            env,
+            startupinfo,
+            creationflags,
+            shell,
+            p2cread,
+            p2cwrite,
+            c2pread,
+            c2pwrite,
+            errread,
+            errwrite,
+            unused_restore_signals,
+            unused_start_new_session,
+        ):
+            self.do_execute_child(
+                args,
+                executable,
+                preexec_fn,
+                close_fds,
+                pass_fds,
+                cwd,
+                env,
+                startupinfo,
+                creationflags,
+                shell,
+                p2cread,
+                p2cwrite,
+                c2pread,
+                c2pwrite,
+                errread,
+                errwrite,
+            )
 
+    def do_execute_child(
+        self,
+        args,
+        executable,
+        preexec_fn,
+        close_fds,
+        pass_fds,
+        cwd,
+        env,
+        startupinfo,
+        creationflags,
+        shell,
+        p2cread,
+        p2cwrite,
+        c2pread,
+        c2pwrite,
+        errread,
+        errwrite,
+    ):
+        """Execute program."""
         assert not pass_fds, "pass_fds not supported on Windows."
 
         if not isinstance(args, str):
@@ -202,20 +327,33 @@ class PopenAsUser(Popen):
 
         # Start the process
         try:
-            hp, ht, pid, tid = win32process.CreateProcessAsUser(self._token, executable, args,
-                                                        # no special security
-                                                        None, None,
-                                                        int(not close_fds),
-                                                        creationflags,
-                                                        env,
-                                                        os.fspath(cwd) if cwd is not None else None,
-                                                        startupinfo)
+            hp, ht, pid, tid = win32process.CreateProcessAsUser(
+                self._token,
+                executable,
+                args,
+                # no special security
+                None,
+                None,
+                int(not close_fds),
+                creationflags,
+                env,
+                os.fspath(cwd) if cwd is not None else None,
+                startupinfo,
+            )
             err = win32api.GetLastError()
             if err:
-                logger.error("Error %r when calling CreateProcessAsUser executable %s args %s with the \
-                            token %r ", err, executable, args, self._token)
+                logger.error(
+                    "Error %r when calling CreateProcessAsUser executable %s args %s with the \
+                            token %r ",
+                    err,
+                    executable,
+                    args,
+                    self._token,
+                )
             else:
-                win32event.WaitForSingleObject(hp, 1000)  # Wait at least one second before checking exit code
+                win32event.WaitForSingleObject(
+                    hp, 1000
+                )  # Wait at least one second before checking exit code
                 exit_code = win32process.GetExitCodeProcess(hp)
                 if exit_code != win32con.STILL_ACTIVE:
                     logger.error(
@@ -223,7 +361,7 @@ class PopenAsUser(Popen):
                         win32process.GetExitCodeProcess(hp),
                         executable,
                         args,
-                        self._token
+                        self._token,
                     )
         finally:
             # Child is launched. Close the parent's copy of those pipe
@@ -238,7 +376,7 @@ class PopenAsUser(Popen):
                 c2pwrite.Close()
             if errwrite != -1:
                 errwrite.Close()
-            if hasattr(self, '_devnull'):
+            if hasattr(self, "_devnull"):
                 os.close(self._devnull)
 
         try:
