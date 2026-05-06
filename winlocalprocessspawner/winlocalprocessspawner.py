@@ -1,21 +1,20 @@
+"""Windows-specific JupyterHub spawner for launching single-user servers as local processes."""
+
 import os
-import sys
 import pipes
 import shutil
 from tempfile import mkdtemp
 
-from jupyterhub.spawner import LocalProcessSpawner
-from jupyterhub.utils import random_port
-
 import pywintypes
 import win32profile
+from jupyterhub.spawner import LocalProcessSpawner
+from jupyterhub.utils import random_port
 
 from .win_utils import PopenAsUser
 
 
 class WinLocalProcessSpawner(LocalProcessSpawner):
-    """
-    A Spawner that start single-user servers as local Windows processes
+    """A Spawner that start single-user servers as local Windows processes.
 
     It uses the authentication token stored in the field 'auth_token' of the current
     auth_state. Its the Authenticator's job to fill the 'auth_token' with a valid Windows
@@ -24,12 +23,12 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
 
     def user_env(self, env):
         """Augment environment of spawned process with user specific env variables."""
-        env['USER'] = self.user.name
+        env["USER"] = self.user.name
         return env
 
     def get_env(self):
         """Get the complete set of environment variables to be set in the spawned process."""
-        win_env_keep = ['SYSTEMROOT', 'APPDATA', 'WINDIR', 'USERPROFILE', 'TEMP']
+        win_env_keep = ["SYSTEMROOT", "APPDATA", "WINDIR", "USERPROFILE", "TEMP"]
 
         env = super().get_env()
         for key in win_env_keep:
@@ -51,13 +50,13 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         if self.shell_cmd:
             # using shell_cmd (e.g. bash -c),
             # add our cmd list as the last (single) argument:
-            cmd = self.shell_cmd + [' '.join(pipes.quote(s) for s in cmd)]
+            cmd = self.shell_cmd + [" ".join(pipes.quote(s) for s in cmd)]
 
-        self.log.info("Spawning %s", ' '.join(pipes.quote(s) for s in cmd))
+        self.log.info("Spawning %s", " ".join(pipes.quote(s) for s in cmd))
 
         auth_state = await self.user.get_auth_state()
         if auth_state:
-            token = auth_state.get('auth_token')
+            token = auth_state.get("auth_token")
             if token:
                 token = pywintypes.HANDLE(token)
 
@@ -73,18 +72,18 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             # Only load user environment if we hold a valid auth token
             if token:
                 env.update(user_env)
-            if not 'APPDATA' in user_env:
-                #If the 'APPDATA' does not exist, the USERPROFILE points at the default
-                #directory which is not writable. this changes the path over to public
-                #documents, so at least its a writable location.
-                user_env['USERPROFILE'] = user_env['PUBLIC']
+            if "APPDATA" not in user_env:
+                # If the 'APPDATA' does not exist, the USERPROFILE points at the default
+                # directory which is not writable. this changes the path over to public
+                # documents, so at least its a writable location.
+                user_env["USERPROFILE"] = user_env["PUBLIC"]
 
         # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
         # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
         if self.notebook_dir:
             cwd = os.getcwd()
-        elif env['APPDATA']:
-            cwd = user_env['USERPROFILE']
+        elif env["APPDATA"]:
+            cwd = user_env["USERPROFILE"]
         else:
             # Set CWD to a temp directory, since we failed to load the user profile
             cwd = mkdtemp()
@@ -96,15 +95,17 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
 
         popen_kwargs.update(self.popen_kwargs)
         # don't let user config override env
-        popen_kwargs['env'] = env
+        popen_kwargs["env"] = env
         try:
             self.proc = PopenAsUser(cmd, **popen_kwargs)
         except PermissionError:
             # use which to get abspath
             script = shutil.which(cmd[0]) or cmd[0]
-            self.log.error("Permission denied trying to run %r. Does %s have access to this file?",
-                           script, self.user.name,
-                          )
+            self.log.error(
+                "Permission denied trying to run %r. Does %s have access to this file?",
+                script,
+                self.user.name,
+            )
             if token:
                 token.Detach()
             raise
@@ -124,4 +125,4 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             self.server.port = self.port
             self.db.commit()
 
-        return (self.ip or '127.0.0.1', self.port)
+        return (self.ip or "127.0.0.1", self.port)

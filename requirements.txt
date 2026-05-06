@@ -1,0 +1,4 @@
+ni-python-styleguide==0.4.9 # pinned in order to prevent potential future incompatibilities with Python 3.8
+pytest<9 # pytest 9 drops official support for Python 3.8
+pywin32==300
+jupyterhub==1.3.0

@@ -1,5 +1,5 @@
-"""Windows local process Jupyterhub spawner """
+"""Windows local process Jupyterhub spawner."""
 
 from winlocalprocessspawner.winlocalprocessspawner import WinLocalProcessSpawner
 
-__all__ = ['WinLocalProcessSpawner']
+__all__ = ["WinLocalProcessSpawner"]
