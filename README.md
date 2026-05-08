@@ -7,6 +7,7 @@ For an example of these architecture, check the [WinAuthenticator](https://githu
 # Local development
 - Install `dev-requirements.txt` by running `pip install -r dev-requirements.txt` in your **Python 3.8** virtual environment.
   This contains both dependencies required for this project, as well as testing + linting dependencies.
+  The `dev-requirements.txt` file also installs the current project as an editable package, via `-e .`
 - Tests can be run using `pytest .`
 - Linting can be run using `ni-python-styleguide lint winlocalprocessspawner/` and `ni-python-styleguide lint tests`.
 
