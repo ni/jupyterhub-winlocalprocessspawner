@@ -128,3 +128,74 @@ class TestSetupSacl:
 
             # Verify ACL was created (not just returned)
             mock_acl_class.assert_called()
+
+
+class MockPyHandle:
+    """Mock PyHANDLE class since it's not exported by pywin32."""
+
+    def __init__(self, handle):
+        """Initializes PyHANDLE with an integer handle value."""
+        self.handle = handle
+
+    def handle(self):
+        return self.handle
+
+    def Close(self):  # noqa: N802
+        return None
+
+    def Detach(self):  # noqa: N802
+        self.Handle = None
+        return self
+
+
+class TestSecurityTokenUtils:
+    """Tests for the SecurityTokenUtils class."""
+
+    def test_create_token_returns_token_if_logon_user_call_is_successful(self, monkeypatch):
+        def mock_logon_user(*args):
+            pyhandle = MockPyHandle(9999)
+            return pyhandle
+
+        monkeypatch.setattr(win_utils.win32security, "LogonUser", mock_logon_user)
+
+        token = win_utils.SecurityTokenUtils.create_token("test_user", "test_pass")
+        assert token.handle == 9999
+
+    def test_create_token_returns_none_and_logs_error_if_logon_user_yields_win32api_error(
+        self, monkeypatch
+    ):
+        def mock_logon_user(*args):
+            pyhandle = MockPyHandle(9999)
+            return pyhandle
+
+        def mock_get_last_error():
+            return -1
+
+        mock_logger = mock.Mock()
+
+        monkeypatch.setattr(win_utils, "logger", mock_logger)
+        monkeypatch.setattr(win_utils.win32security, "LogonUser", mock_logon_user)
+        monkeypatch.setattr(win_utils.win32api, "GetLastError", mock_get_last_error)
+
+        token = win_utils.SecurityTokenUtils.create_token("test_user", "test_pass")
+        assert token is None
+        mock_logger.error.assert_called()
+
+    def test_create_token_returns_none_and_logs_error_if_logon_user_excepts(self, monkeypatch):
+        def mock_logon_user(*args):
+            import pywintypes
+
+            raise pywintypes.error
+
+        def mock_get_last_error():
+            return -1
+
+        mock_logger = mock.Mock()
+
+        monkeypatch.setattr(win_utils, "logger", mock_logger)
+        monkeypatch.setattr(win_utils.win32security, "LogonUser", mock_logon_user)
+        monkeypatch.setattr(win_utils.win32api, "GetLastError", mock_get_last_error)
+
+        token = win_utils.SecurityTokenUtils.create_token("test_user", "test_pass")
+        assert token is None
+        mock_logger.error.assert_called()
