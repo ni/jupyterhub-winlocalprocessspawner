@@ -10,7 +10,7 @@ logger = logging.getLogger("token_utils")
 
 
 def create_service_token(username: str, password: str) -> pywintypes.HANDLEType:
-    """Logs on a Windows Service user, given its password, and returns the security token."""
+    """Logs on a Windows Service user, given its password, and returns a handle to the security token."""
     token_handle = None
 
     try:
@@ -53,4 +53,5 @@ def remove_all_token_privileges(token_handle: pywintypes.HANDLEType) -> int:
         logger.error("Error %r occurred when removing privileges from security token", err)
         restricted_token = None
 
-    return restricted_token
+    restricted_token_handle = pywintypes.HANDLE(restricted_token)
+    return restricted_token_handle
