@@ -53,5 +53,4 @@ def remove_all_token_privileges(token_handle: pywintypes.HANDLEType) -> int:
         logger.error("Error %r occurred when removing privileges from security token", err)
         restricted_token = None
 
-    restricted_token_handle = pywintypes.HANDLE(restricted_token)
-    return restricted_token_handle
+    return restricted_token

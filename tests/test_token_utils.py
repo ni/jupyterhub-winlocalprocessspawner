@@ -227,7 +227,6 @@ class TestIntegrationTokenUtils:
 
         restricted_token = token_utils.remove_all_token_privileges(token_handle)
         assert restricted_token is not None
-        raise Exception(restricted_token.handle)
         privileges = win32security.GetTokenInformation(
             restricted_token.handle, win32security.TokenPrivileges
         )
