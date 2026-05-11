@@ -124,7 +124,7 @@ class TestUnitTokenUtils:
 
 
 class TestIntegrationTokenUtils:
-    """Integration tests token_utils."""
+    """Integration tests for token_utils."""
 
     def test_create_token_with_real_service_user_returns_valid_token(self, test_service_user):
         token = token_utils.create_service_token(
