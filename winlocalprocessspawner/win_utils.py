@@ -6,6 +6,7 @@ import os
 import sys
 from subprocess import Handle, Popen, list2cmdline
 
+import pywintypes
 import win32api
 import win32con
 import win32event
@@ -389,25 +390,31 @@ class PopenAsUser(Popen):
             CLOSEHANDLE(ht)
 
 
-# consider having a TokenLifetimeManager class that can be used in a 'with' block and closes the token?
-#class TokenLifetimeManager:
-import pywintypes
-
+# consider having a TokenLifetimeManager class
+# that can be used in a 'with' block and closes the token?
+# class TokenLifetimeManager:
 class SecurityTokenUtils:
+    """Utilities for creating and restricting a security token for a Windows user."""
+
     @staticmethod
     def create_token(username: str, password: str):
+        """Logs on a Windows user, given its password, and returns the security token."""
         handle = None
 
-        try: 
-            handle = win32security.LogonUser(username, None, password, win32security.LOGON32_LOGON_SERVICE)
+        try:
+            handle = win32security.LogonUser(
+                username, None, password, win32security.LOGON32_LOGON_SERVICE
+            )
         except pywintypes.error as e:
-            logger.error("Exception occurred when creating security token for user '%s': %r", username, e)            
-        finally:
-            err = win32api.GetLastError()
-            if err:
-                logger.error("Error %r occurred when creating security token for user '%s'", err, username)
-                handle = None
+            logger.error(
+                "Exception occurred when creating security token for user '%s': %r", username, e
+            )
+
+        err = win32api.GetLastError()
+        if err:
+            logger.error(
+                "Error %r occurred when creating security token for user '%s'", err, username
+            )
+            handle = None
 
         return handle
-
-
