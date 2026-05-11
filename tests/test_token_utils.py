@@ -1,30 +1,19 @@
+"""Unit and integration tests for token_utils.
+
+Unit tests are under class `TestUnitTokenUtils`.
+Integration testa are under class `TestIntegrationTokenUtils`.
+"""
+
 import secrets
 import string
 from unittest import mock
 
 import pytest
+import pywintypes
 import win32net
 import win32netcon
 import win32security
 import winlocalprocessspawner.token_utils as token_utils
-
-
-class MockPyHandle:
-    """Mock PyHANDLE class since it's not exported by pywin32."""
-
-    def __init__(self, handle):
-        """Initializes PyHANDLE with an integer handle value."""
-        self.handle = handle
-
-    def handle(self):
-        return self.handle
-
-    def Close(self):  # noqa: N802
-        return None
-
-    def Detach(self):  # noqa: N802
-        self.Handle = None
-        return self
 
 
 @pytest.fixture
@@ -75,7 +64,7 @@ class TestUnitTokenUtils:
 
     def test_create_token_returns_token_if_logon_user_call_is_successful(self, monkeypatch):
         def mock_logon_user(*args):
-            pyhandle = MockPyHandle(9999)
+            pyhandle = pywintypes.HANDLE(9999)
             return pyhandle
 
         monkeypatch.setattr(token_utils.win32security, "LogonUser", mock_logon_user)
@@ -87,7 +76,7 @@ class TestUnitTokenUtils:
         self, monkeypatch
     ):
         def mock_logon_user(*args):
-            pyhandle = MockPyHandle(9999)
+            pyhandle = pywintypes.HANDLE(9999)
             return pyhandle
 
         def mock_get_last_error():
