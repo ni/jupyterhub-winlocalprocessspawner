@@ -10,7 +10,7 @@ logger = logging.getLogger("token_utils")
 
 
 def create_service_token(username: str, password: str) -> pywintypes.HANDLEType:
-    """Logs on a Windows Service user, given its password, and returns a handle to the security token."""
+    """Logs on a Windows Service user, given its password, and returns a handle to the token."""
     token_handle = None
 
     try:
