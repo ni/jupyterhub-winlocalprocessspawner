@@ -32,3 +32,22 @@ def create_service_token(username: str, password: str):
         handle = None
 
     return handle
+
+
+def remove_all_token_privileges(token):
+    """Disables all privileges in the token, except for SeChangeNotifyPrivilege."""
+    restricted_token = None
+
+    try:
+        restricted_token = win32security.CreateRestrictedToken(
+            token, win32security.DISABLE_MAX_PRIVILEGE, None, None, None
+        )
+    except pywintypes.error as e:
+        logger.error("Exception occurred when removing privileges from security token: %r", e)
+
+    err = win32api.GetLastError()
+    if err:
+        logger.error("Error %r occurred when removing privileges from security token", err)
+        restricted_token = None
+
+    return restricted_token
