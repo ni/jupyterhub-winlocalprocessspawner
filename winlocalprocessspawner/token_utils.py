@@ -9,12 +9,12 @@ import win32security
 logger = logging.getLogger("token_utils")
 
 
-def create_service_token(username: str, password: str):
+def create_service_token(username: str, password: str) -> pywintypes.HANDLEType:
     """Logs on a Windows Service user, given its password, and returns the security token."""
-    handle = None
+    token_handle = None
 
     try:
-        handle = win32security.LogonUser(
+        token_handle = win32security.LogonUser(
             username,
             None,
             password,
@@ -29,18 +29,21 @@ def create_service_token(username: str, password: str):
     err = win32api.GetLastError()
     if err:
         logger.error("Error %r occurred when creating security token for user '%s'", err, username)
-        handle = None
+        token_handle = None
 
-    return handle
+    return token_handle
 
 
-def remove_all_token_privileges(token):
-    """Disables all privileges in the token, except for SeChangeNotifyPrivilege."""
+def remove_all_token_privileges(token_handle: pywintypes.HANDLEType) -> int:
+    """Disables all privileges in the token, except for SeChangeNotifyPrivilege.
+
+    Returns a new token, with restricted privileges.
+    """
     restricted_token = None
 
     try:
         restricted_token = win32security.CreateRestrictedToken(
-            token, win32security.DISABLE_MAX_PRIVILEGE, None, None, None
+            token_handle, win32security.DISABLE_MAX_PRIVILEGE, None, None, None
         )
     except pywintypes.error as e:
         logger.error("Exception occurred when removing privileges from security token: %r", e)

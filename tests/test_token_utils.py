@@ -80,8 +80,8 @@ class TestUnitTokenUtils:
 
         monkeypatch.setattr(token_utils.win32security, "LogonUser", mock_logon_user)
 
-        token = token_utils.create_service_token("test_user", "test_pass")
-        assert token.handle == 9999
+        token_handle = token_utils.create_service_token("test_user", "test_pass")
+        assert token_handle.handle == 9999
 
     def test_create_token_returns_none_and_logs_error_if_logon_user_yields_win32api_error(
         self, monkeypatch
@@ -99,8 +99,8 @@ class TestUnitTokenUtils:
         monkeypatch.setattr(token_utils.win32security, "LogonUser", mock_logon_user)
         monkeypatch.setattr(token_utils.win32api, "GetLastError", mock_get_last_error)
 
-        token = token_utils.create_service_token("test_user", "test_pass")
-        assert token is None
+        token_handle = token_utils.create_service_token("test_user", "test_pass")
+        assert token_handle is None
         mock_logger.error.assert_called()
 
     def test_create_token_returns_none_and_logs_error_if_logon_user_excepts(self, monkeypatch):
@@ -118,8 +118,8 @@ class TestUnitTokenUtils:
         monkeypatch.setattr(token_utils.win32security, "LogonUser", mock_logon_user)
         monkeypatch.setattr(token_utils.win32api, "GetLastError", mock_get_last_error)
 
-        token = token_utils.create_service_token("test_user", "test_pass")
-        assert token is None
+        token_handle = token_utils.create_service_token("test_user", "test_pass")
+        assert token_handle is None
         mock_logger.error.assert_called()
 
     def test_remove_all_token_privileges_calls_create_restricted_token_with_disable_max_privilege(
@@ -189,31 +189,31 @@ class TestIntegrationTokenUtils:
     """Integration tests for token_utils."""
 
     def test_create_token_with_real_service_user_returns_valid_token(self, temporary_service_user):
-        token = token_utils.create_service_token(
+        token_handle = token_utils.create_service_token(
             temporary_service_user["username"],
             temporary_service_user["password"],
         )
 
-        assert token is not None
-        token.Close()
+        assert token_handle is not None
+        token_handle.Close()
 
     def test_create_token_with_valid_username_and_invalid_password_returns_none(
         self, temporary_service_user
     ):
-        token = token_utils.create_service_token(
+        token_handle = token_utils.create_service_token(
             temporary_service_user["username"],
             temporary_service_user["password"] + "suffix_to_make_password_invalid",
         )
 
-        assert token is None
+        assert token_handle is None
 
     def test_create_token_with_nonexisting_username_returns_none(self):
-        token = token_utils.create_service_token(
+        token_handle = token_utils.create_service_token(
             "NonexistingUsername1234567654321",
             "dummy_password",
         )
 
-        assert token is None
+        assert token_handle is None
 
     @pytest.mark.parametrize("token", [None, 0])
     def test_remove_all_token_privileges_with_invalid_token_logs_error_and_returns_none(
@@ -230,13 +230,13 @@ class TestIntegrationTokenUtils:
     def test_remove_all_privileges_with_valid_token_removes_privileges_but_preserves_group_sids(
         self, temporary_service_user
     ):
-        token = token_utils.create_service_token(
+        token_handle = token_utils.create_service_token(
             temporary_service_user["username"],
             temporary_service_user["password"],
         )
-        assert token is not None
+        assert token_handle is not None
 
-        restricted_token = token_utils.remove_all_token_privileges(token)
+        restricted_token = token_utils.remove_all_token_privileges(token_handle)
         assert restricted_token is not None
 
         privileges = win32security.GetTokenInformation(
@@ -248,7 +248,9 @@ class TestIntegrationTokenUtils:
         assert privilege_name == win32security.SE_CHANGE_NOTIFY_NAME
 
         # the group SIDs should remain the same
-        original_token_groups = win32security.GetTokenInformation(token, win32security.TokenGroups)
+        original_token_groups = win32security.GetTokenInformation(
+            token_handle, win32security.TokenGroups
+        )
         restricted_token_groups = win32security.GetTokenInformation(
             restricted_token, win32security.TokenGroups
         )
