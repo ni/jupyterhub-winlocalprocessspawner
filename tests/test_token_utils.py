@@ -6,7 +6,6 @@ Integration tests are under class `TestIntegrationTokenUtils`.
 
 import secrets
 import string
-from unittest import mock
 
 import ntsecuritycon
 import pytest
@@ -129,9 +128,6 @@ class TestUnitTokenUtils:
         def mock_get_last_error():
             return -1
 
-        mock_logger = mock.Mock()
-
-        monkeypatch.setattr(token_utils, "logger", mock_logger)
         monkeypatch.setattr(
             token_utils.win32security, "CreateRestrictedToken", mock_create_restricted_token
         )
@@ -172,9 +168,6 @@ class TestIntegrationTokenUtils:
 
     @pytest.mark.parametrize("token", [None, 0])
     def test_restrict_token_with_invalid_token_raises(self, token, monkeypatch):
-        mock_logger = mock.Mock()
-        monkeypatch.setattr(token_utils, "logger", mock_logger)
-
         with pytest.raises(pywintypes.error) as exc_info:
             token_utils.restrict_token(token)
         assert exc_info.value.winerror == winerror.ERROR_INVALID_HANDLE
