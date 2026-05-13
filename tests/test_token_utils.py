@@ -31,6 +31,7 @@ def temporary_service_user():
             secrets.choice(string.ascii_lowercase)
             + secrets.choice(string.ascii_uppercase)
             + secrets.choice(string.digits)
+            + secrets.choice(special_characters)
         )
         return minimum_requirements_prefix + "".join(
             secrets.choice(alphabet) for _ in range(length)
