@@ -1,7 +1,7 @@
 """Unit and integration tests for token_utils.
 
 Unit tests are under class `TestUnitTokenUtils`.
-Integration testa are under class `TestIntegrationTokenUtils`.
+Integration tests are under class `TestIntegrationTokenUtils`.
 """
 
 import secrets
