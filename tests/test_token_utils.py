@@ -88,7 +88,7 @@ class TestUnitTokenUtils:
         token_handle = token_utils.create_service_token("test_user", "test_pass")
         assert token_handle.handle == 9999
 
-    def test_create_token_excepts_if_logon_user_excepts(self, monkeypatch):
+    def test_create_token_propagates_exception_from_logon_user(self, monkeypatch):
         def mock_logon_user(*args):
             raise pywintypes.error
 
@@ -125,7 +125,7 @@ class TestUnitTokenUtils:
         assert restricted_token == 9999
         assert passed_flags & win32security.DISABLE_MAX_PRIVILEGE
 
-    def test_restrict_token_excepts_if_create_restricted_token_excepts(self, monkeypatch):
+    def test_restrict_token_propagates_exception_from_create_restricted_token(self, monkeypatch):
         def mock_create_restricted_token(*args):
             raise pywintypes.error
 
@@ -155,7 +155,7 @@ class TestIntegrationTokenUtils:
 
         token_handle.Close()
 
-    def test_create_token_with_valid_username_and_invalid_password_excepts(
+    def test_create_token_with_valid_username_and_invalid_password_raises(
         self, temporary_service_user
     ):
         with pytest.raises(pywintypes.error) as exc_info:
@@ -165,7 +165,7 @@ class TestIntegrationTokenUtils:
             )
         assert exc_info.value.winerror == winerror.ERROR_LOGON_FAILURE
 
-    def test_create_token_with_nonexisting_username_excepts(self):
+    def test_create_token_with_nonexisting_username_raises(self):
         with pytest.raises(pywintypes.error) as exc_info:
             token_utils.create_service_token(
                 "NonexistingUsername1234567654321",
@@ -174,7 +174,7 @@ class TestIntegrationTokenUtils:
         assert exc_info.value.winerror == winerror.ERROR_LOGON_FAILURE
 
     @pytest.mark.parametrize("token", [None, 0])
-    def test_restrict_token_with_invalid_token_excepts(self, token, monkeypatch):
+    def test_restrict_token_with_invalid_token_raises(self, token, monkeypatch):
         mock_logger = mock.Mock()
         monkeypatch.setattr(token_utils, "logger", mock_logger)
 
@@ -237,7 +237,7 @@ class TestIntegrationTokenUtils:
             if restricted_token:
                 win32api.CloseHandle(restricted_token)
 
-    def test_restrict_token_with_valid_token_sets_preserves_group_sids_except_for_group_integrity(
+    def test_restrict_token_with_valid_token_preserves_group_sids_except_for_group_integrity(
         self, temporary_service_user
     ):
         token_handle = token_utils.create_service_token(
