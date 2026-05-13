@@ -14,6 +14,7 @@ import pywintypes
 import win32net
 import win32netcon
 import win32security
+import winerror
 import winlocalprocessspawner.token_utils as token_utils
 
 
@@ -22,8 +23,18 @@ def temporary_service_user():
     """Sets up a temporary Windows local user that has service logon rights."""
 
     def _random_password(length=24):
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        return "".join(secrets.choice(alphabet) for _ in range(length))
+        special_characters = "!@#$%^&*"
+        alphabet = string.ascii_letters + string.digits + special_characters
+        # prefix password with a choice of [lowercase][uppercase][digit][special] to make sure
+        # that the password passes Windows minimum requirements
+        minimum_requirements_prefix = (
+            secrets.choice(string.ascii_lowercase)
+            + secrets.choice(string.ascii_uppercase)
+            + secrets.choice(string.digits)
+        )
+        return minimum_requirements_prefix + "".join(
+            secrets.choice(alphabet) for _ in range(length)
+        )
 
     username = "wlpstest_" + secrets.token_hex(4)
     password = _random_password()
@@ -73,44 +84,18 @@ class TestUnitTokenUtils:
         token_handle = token_utils.create_service_token("test_user", "test_pass")
         assert token_handle.handle == 9999
 
-    def test_create_token_returns_none_and_logs_error_if_logon_user_yields_win32api_error(
-        self, monkeypatch
-    ):
+    def test_create_token_excepts_if_logon_user_excepts(self, monkeypatch):
         def mock_logon_user(*args):
-            pyhandle = pywintypes.HANDLE(9999)
-            return pyhandle
+            raise pywintypes.error
 
         def mock_get_last_error():
             return -1
 
-        mock_logger = mock.Mock()
-
-        monkeypatch.setattr(token_utils, "logger", mock_logger)
         monkeypatch.setattr(token_utils.win32security, "LogonUser", mock_logon_user)
         monkeypatch.setattr(token_utils.win32api, "GetLastError", mock_get_last_error)
 
-        token_handle = token_utils.create_service_token("test_user", "test_pass")
-        assert token_handle is None
-        mock_logger.error.assert_called()
-
-    def test_create_token_returns_none_and_logs_error_if_logon_user_excepts(self, monkeypatch):
-        def mock_logon_user(*args):
-            import pywintypes
-
-            raise pywintypes.error
-
-        def mock_get_last_error():
-            return 0
-
-        mock_logger = mock.Mock()
-
-        monkeypatch.setattr(token_utils, "logger", mock_logger)
-        monkeypatch.setattr(token_utils.win32security, "LogonUser", mock_logon_user)
-        monkeypatch.setattr(token_utils.win32api, "GetLastError", mock_get_last_error)
-
-        token_handle = token_utils.create_service_token("test_user", "test_pass")
-        assert token_handle is None
-        mock_logger.error.assert_called()
+        with pytest.raises(pywintypes.error):
+            token_utils.create_service_token("test_user", "test_pass")
 
     def test_restrict_token_calls_create_restricted_token_with_disable_max_privilege(
         self, monkeypatch
@@ -122,41 +107,23 @@ class TestUnitTokenUtils:
             passed_flags = flags
             return 9999
 
+        def mock_set_token_information(*args):
+            pass
+
         monkeypatch.setattr(
             token_utils.win32security, "CreateRestrictedToken", mock_create_restricted_token
         )
-
-        token_utils.restrict_token(1111)
-        assert passed_flags & win32security.DISABLE_MAX_PRIVILEGE
-
-    def test_restrict_token_returns_none_and_logs_error_if_create_restricted_token_excepts(
-        self, monkeypatch
-    ):
-        def mock_create_restricted_token(*args):
-            import pywintypes
-
-            raise pywintypes.error
-
-        def mock_get_last_error():
-            return 0
-
-        mock_logger = mock.Mock()
-
-        monkeypatch.setattr(token_utils, "logger", mock_logger)
         monkeypatch.setattr(
-            token_utils.win32security, "CreateRestrictedToken", mock_create_restricted_token
+            token_utils.win32security, "SetTokenInformation", mock_set_token_information
         )
-        monkeypatch.setattr(token_utils.win32api, "GetLastError", mock_get_last_error)
 
         restricted_token = token_utils.restrict_token(1111)
-        assert restricted_token is None
-        mock_logger.error.assert_called()
+        assert restricted_token == 9999
+        assert passed_flags & win32security.DISABLE_MAX_PRIVILEGE
 
-    def test_restrict_token_returns_none_and_logs_error_if_create_restricted_token_yields_win32api_error(
-        self, monkeypatch
-    ):
+    def test_restrict_token_excepts_if_create_restricted_token_excepts(self, monkeypatch):
         def mock_create_restricted_token(*args):
-            return 9999
+            raise pywintypes.error
 
         def mock_get_last_error():
             return -1
@@ -169,9 +136,8 @@ class TestUnitTokenUtils:
         )
         monkeypatch.setattr(token_utils.win32api, "GetLastError", mock_get_last_error)
 
-        restricted_token = token_utils.restrict_token(1111)
-        assert restricted_token is None
-        mock_logger.error.assert_called()
+        with pytest.raises(pywintypes.error):
+            token_utils.restrict_token(1111)
 
 
 class TestIntegrationTokenUtils:
@@ -186,35 +152,32 @@ class TestIntegrationTokenUtils:
         assert token_handle is not None
         token_handle.Close()
 
-    def test_create_token_with_valid_username_and_invalid_password_returns_none(
+    def test_create_token_with_valid_username_and_invalid_password_excepts(
         self, temporary_service_user
     ):
-        token_handle = token_utils.create_service_token(
-            temporary_service_user["username"],
-            temporary_service_user["password"] + "suffix_to_make_password_invalid",
-        )
+        with pytest.raises(pywintypes.error) as exc_info:
+            token_utils.create_service_token(
+                temporary_service_user["username"],
+                temporary_service_user["password"] + "suffix_to_make_password_invalid",
+            )
+        assert exc_info.value.winerror == winerror.ERROR_LOGON_FAILURE
 
-        assert token_handle is None
-
-    def test_create_token_with_nonexisting_username_returns_none(self):
-        token_handle = token_utils.create_service_token(
-            "NonexistingUsername1234567654321",
-            "dummy_password",
-        )
-
-        assert token_handle is None
+    def test_create_token_with_nonexisting_username_excepts(self):
+        with pytest.raises(pywintypes.error) as exc_info:
+            token_utils.create_service_token(
+                "NonexistingUsername1234567654321",
+                "dummy_password",
+            )
+        assert exc_info.value.winerror == winerror.ERROR_LOGON_FAILURE
 
     @pytest.mark.parametrize("token", [None, 0])
-    def test_restrict_token_with_invalid_token_logs_error_and_returns_none(
-        self, token, monkeypatch
-    ):
+    def test_restrict_token_with_invalid_token_excepts(self, token, monkeypatch):
         mock_logger = mock.Mock()
         monkeypatch.setattr(token_utils, "logger", mock_logger)
 
-        restricted_token = token_utils.restrict_token(token)
-
-        assert restricted_token is None
-        mock_logger.error.assert_called()
+        with pytest.raises(pywintypes.error) as exc_info:
+            token_utils.restrict_token(token)
+        assert exc_info.value.winerror == winerror.ERROR_INVALID_HANDLE
 
     def test_restrict_token_with_valid_token_removes_privileges(self, temporary_service_user):
         token_handle = token_utils.create_service_token(

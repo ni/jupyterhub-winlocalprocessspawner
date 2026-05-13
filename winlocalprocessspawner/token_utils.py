@@ -12,25 +12,13 @@ logger = logging.getLogger("token_utils")
 
 def create_service_token(username: str, password: str) -> pywintypes.HANDLEType:
     """Logs on a Windows Service user, given its password, and returns a handle to the token."""
-    token_handle = None
-
-    try:
-        token_handle = win32security.LogonUser(
-            username,
-            None,
-            password,
-            win32security.LOGON32_LOGON_SERVICE,
-            win32security.LOGON32_PROVIDER_DEFAULT,
-        )
-    except pywintypes.error as e:
-        logger.error(
-            "Exception occurred when creating security token for user '%s': %r", username, e
-        )
-
-    err = win32api.GetLastError()
-    if err:
-        logger.error("Error %r occurred when creating security token for user '%s'", err, username)
-        token_handle = None
+    token_handle = win32security.LogonUser(
+        username,
+        None,
+        password,
+        win32security.LOGON32_LOGON_SERVICE,
+        win32security.LOGON32_PROVIDER_DEFAULT,
+    )
 
     return token_handle
 
@@ -41,7 +29,6 @@ def restrict_token(token_handle: pywintypes.HANDLEType) -> int:
     Returns a new token, with restricted privileges, and medium integrity level.
     """
     restricted_token = None
-
     try:
         # Remove privileges
         restricted_token = win32security.CreateRestrictedToken(
@@ -61,12 +48,9 @@ def restrict_token(token_handle: pywintypes.HANDLEType) -> int:
             win32security.TokenIntegrityLevel,
             (medium_integrity_sid, ntsecuritycon.SE_GROUP_INTEGRITY),
         )
-    except pywintypes.error as e:
-        logger.error("Exception occurred when removing privileges from security token: %r", e)
-
-    err = win32api.GetLastError()
-    if err:
-        logger.error("Error %r occurred when removing privileges from security token", err)
-        restricted_token = None
+    except pywintypes.error:
+        if restricted_token:
+            win32api.CloseHandle(restricted_token)
+        raise
 
     return restricted_token
