@@ -11,6 +11,7 @@ from unittest import mock
 import ntsecuritycon
 import pytest
 import pywintypes
+import win32api
 import win32net
 import win32netcon
 import win32security
@@ -187,14 +188,23 @@ class TestIntegrationTokenUtils:
             temporary_service_user["password"],
         )
 
-        restricted_token = token_utils.restrict_token(token_handle)
-        privileges = win32security.GetTokenInformation(
-            restricted_token, win32security.TokenPrivileges
-        )
-        # only the SeChangeNotifyPrivilege should remain
-        assert len(privileges) == 1
-        privilege_name = win32security.LookupPrivilegeName(None, privileges[0][0])
-        assert privilege_name == win32security.SE_CHANGE_NOTIFY_NAME
+        restricted_token = None
+        try:
+            restricted_token = token_utils.restrict_token(token_handle)
+        finally:
+            token_handle.Close()  # no longer needed
+
+        try:
+            privileges = win32security.GetTokenInformation(
+                restricted_token, win32security.TokenPrivileges
+            )
+            # only the SeChangeNotifyPrivilege should remain
+            assert len(privileges) == 1
+            privilege_name = win32security.LookupPrivilegeName(None, privileges[0][0])
+            assert privilege_name == win32security.SE_CHANGE_NOTIFY_NAME
+        finally:
+            if restricted_token:
+                win32api.CloseHandle(restricted_token)
 
     def test_restrict_token_with_valid_token_sets_medium_integrity_level(
         self, temporary_service_user
@@ -204,20 +214,28 @@ class TestIntegrationTokenUtils:
             temporary_service_user["password"],
         )
 
-        restricted_token = token_utils.restrict_token(token_handle)
+        restricted_token = None
+        try:
+            restricted_token = token_utils.restrict_token(token_handle)
+        finally:
+            token_handle.Close()  # no longer needed
 
-        # check that Medium Integrity Level is properly applied to the token
-        restricted_integrity = win32security.GetTokenInformation(
-            restricted_token, win32security.TokenIntegrityLevel
-        )
-        restricted_integrity_sid, restricted_integrity_attrs = restricted_integrity
+        try:
+            # check that Medium Integrity Level is properly applied to the token
+            restricted_integrity = win32security.GetTokenInformation(
+                restricted_token, win32security.TokenIntegrityLevel
+            )
+            restricted_integrity_sid, restricted_integrity_attrs = restricted_integrity
 
-        expected_medium_sid = win32security.CreateWellKnownSid(
-            win32security.WinMediumLabelSid, None
-        )
+            expected_medium_sid = win32security.CreateWellKnownSid(
+                win32security.WinMediumLabelSid, None
+            )
 
-        assert restricted_integrity_sid == expected_medium_sid
-        assert restricted_integrity_attrs & ntsecuritycon.SE_GROUP_INTEGRITY
+            assert restricted_integrity_sid == expected_medium_sid
+            assert restricted_integrity_attrs & ntsecuritycon.SE_GROUP_INTEGRITY
+        finally:
+            if restricted_token:
+                win32api.CloseHandle(restricted_token)
 
     def test_restrict_token_with_valid_token_sets_preserves_group_sids_except_for_group_integrity(
         self, temporary_service_user
@@ -227,29 +245,35 @@ class TestIntegrationTokenUtils:
             temporary_service_user["password"],
         )
 
-        restricted_token = token_utils.restrict_token(token_handle)
+        restricted_token = None
+        try:
+            restricted_token = token_utils.restrict_token(token_handle)
 
-        # the group SIDs, except for the integrity one, should remain the same
-        original_token_groups = win32security.GetTokenInformation(
-            token_handle, win32security.TokenGroups
-        )
-        restricted_token_groups = win32security.GetTokenInformation(
-            restricted_token, win32security.TokenGroups
-        )
+            # the group SIDs, except for the integrity one, should remain the same
+            original_token_groups = win32security.GetTokenInformation(
+                token_handle, win32security.TokenGroups
+            )
+            restricted_token_groups = win32security.GetTokenInformation(
+                restricted_token, win32security.TokenGroups
+            )
 
-        original_non_integrity_groups = sorted(
-            [
-                (win32security.ConvertSidToStringSid(sid), attrs)
-                for sid, attrs in original_token_groups
-                if not (attrs & ntsecuritycon.SE_GROUP_INTEGRITY)
-            ]
-        )
-        restricted_non_integrity_groups = sorted(
-            [
-                (win32security.ConvertSidToStringSid(sid), attrs)
-                for sid, attrs in restricted_token_groups
-                if not (attrs & ntsecuritycon.SE_GROUP_INTEGRITY)
-            ]
-        )
+            original_non_integrity_groups = sorted(
+                [
+                    (win32security.ConvertSidToStringSid(sid), attrs)
+                    for sid, attrs in original_token_groups
+                    if not (attrs & ntsecuritycon.SE_GROUP_INTEGRITY)
+                ]
+            )
+            restricted_non_integrity_groups = sorted(
+                [
+                    (win32security.ConvertSidToStringSid(sid), attrs)
+                    for sid, attrs in restricted_token_groups
+                    if not (attrs & ntsecuritycon.SE_GROUP_INTEGRITY)
+                ]
+            )
 
-        assert original_non_integrity_groups == restricted_non_integrity_groups
+            assert original_non_integrity_groups == restricted_non_integrity_groups
+        finally:
+            token_handle.Close()
+            if restricted_token:
+                win32api.CloseHandle(restricted_token)
