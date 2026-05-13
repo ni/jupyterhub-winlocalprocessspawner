@@ -1,13 +1,9 @@
 """Utilities for creating and restricting a security token for a Windows user."""
 
-import logging
-
 import ntsecuritycon
 import pywintypes
 import win32api
 import win32security
-
-logger = logging.getLogger("token_utils")
 
 
 def create_service_token(username: str, password: str) -> pywintypes.HANDLEType:
