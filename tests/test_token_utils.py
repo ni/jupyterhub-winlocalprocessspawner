@@ -68,9 +68,8 @@ def temporary_service_user():
             win32security.LsaClose(policy_handle)
 
         yield {"username": username, "password": password}
-    finally:            
+    finally:
         win32net.NetUserDel(None, username)
-
 
 
 class TestUnitTokenUtils:
