@@ -2,6 +2,7 @@
 
 import logging
 
+import ntsecuritycon
 import pywintypes
 import win32api
 import win32security
@@ -42,8 +43,23 @@ def restrict_token(token_handle: pywintypes.HANDLEType) -> int:
     restricted_token = None
 
     try:
+        # Remove privileges
         restricted_token = win32security.CreateRestrictedToken(
-            token_handle, win32security.DISABLE_MAX_PRIVILEGE, None, None, None
+            token_handle,
+            win32security.DISABLE_MAX_PRIVILEGE,
+            None,
+            None,
+            None,
+        )
+
+        # Set Medium integrity level
+        medium_integrity_sid = win32security.CreateWellKnownSid(
+            win32security.WinMediumLabelSid, None
+        )
+        win32security.SetTokenInformation(
+            restricted_token,
+            win32security.TokenIntegrityLevel,
+            (medium_integrity_sid, ntsecuritycon.SE_GROUP_INTEGRITY),
         )
     except pywintypes.error as e:
         logger.error("Exception occurred when removing privileges from security token: %r", e)

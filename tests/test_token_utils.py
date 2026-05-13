@@ -8,6 +8,7 @@ import secrets
 import string
 from unittest import mock
 
+import ntsecuritycon
 import pytest
 import pywintypes
 import win32net
@@ -111,7 +112,7 @@ class TestUnitTokenUtils:
         assert token_handle is None
         mock_logger.error.assert_called()
 
-    def test_remove_all_token_privileges_calls_create_restricted_token_with_disable_max_privilege(
+    def test_restrict_token_calls_create_restricted_token_with_disable_max_privilege(
         self, monkeypatch
     ):
         passed_flags = None
@@ -125,11 +126,10 @@ class TestUnitTokenUtils:
             token_utils.win32security, "CreateRestrictedToken", mock_create_restricted_token
         )
 
-        restricted_token = token_utils.restrict_token(1111)
-        assert restricted_token == 9999
+        token_utils.restrict_token(1111)
         assert passed_flags & win32security.DISABLE_MAX_PRIVILEGE
 
-    def test_remove_all_token_privileges_returns_none_and_logs_error_if_create_restricted_token_excepts(
+    def test_restrict_token_returns_none_and_logs_error_if_create_restricted_token_excepts(
         self, monkeypatch
     ):
         def mock_create_restricted_token(*args):
@@ -152,7 +152,7 @@ class TestUnitTokenUtils:
         assert restricted_token is None
         mock_logger.error.assert_called()
 
-    def test_remove_all_token_privileges_returns_none_and_logs_error_if_create_restricted_token_yields_win32api_error(
+    def test_restrict_token_returns_none_and_logs_error_if_create_restricted_token_yields_win32api_error(
         self, monkeypatch
     ):
         def mock_create_restricted_token(*args):
@@ -205,7 +205,7 @@ class TestIntegrationTokenUtils:
         assert token_handle is None
 
     @pytest.mark.parametrize("token", [None, 0])
-    def test_remove_all_token_privileges_with_invalid_token_logs_error_and_returns_none(
+    def test_restrict_token_with_invalid_token_logs_error_and_returns_none(
         self, token, monkeypatch
     ):
         mock_logger = mock.Mock()
@@ -216,9 +216,7 @@ class TestIntegrationTokenUtils:
         assert restricted_token is None
         mock_logger.error.assert_called()
 
-    def test_remove_all_privileges_with_valid_token_removes_privileges_but_preserves_group_sids(
-        self, temporary_service_user
-    ):
+    def test_restrict_token_with_valid_token_removes_privileges(self, temporary_service_user):
         token_handle = token_utils.create_service_token(
             temporary_service_user["username"],
             temporary_service_user["password"],
@@ -235,11 +233,64 @@ class TestIntegrationTokenUtils:
         privilege_name = win32security.LookupPrivilegeName(None, privileges[0][0])
         assert privilege_name == win32security.SE_CHANGE_NOTIFY_NAME
 
-        # the group SIDs should remain the same
+    def test_restrict_token_with_valid_token_sets_medium_integrity_level(
+        self, temporary_service_user
+    ):
+        token_handle = token_utils.create_service_token(
+            temporary_service_user["username"],
+            temporary_service_user["password"],
+        )
+        assert token_handle is not None
+
+        restricted_token = token_utils.restrict_token(token_handle)
+        assert restricted_token is not None
+
+        # check that Medium Integrity Level is properly applied to the token
+        restricted_integrity = win32security.GetTokenInformation(
+            restricted_token, win32security.TokenIntegrityLevel
+        )
+        restricted_integrity_sid, restricted_integrity_attrs = restricted_integrity
+
+        expected_medium_sid = win32security.CreateWellKnownSid(
+            win32security.WinMediumLabelSid, None
+        )
+
+        assert restricted_integrity_sid == expected_medium_sid
+        assert restricted_integrity_attrs & ntsecuritycon.SE_GROUP_INTEGRITY
+
+    def test_restrict_token_with_valid_token_sets_preserves_group_sids_except_for_group_integrity(
+        self, temporary_service_user
+    ):
+        token_handle = token_utils.create_service_token(
+            temporary_service_user["username"],
+            temporary_service_user["password"],
+        )
+        assert token_handle is not None
+
+        restricted_token = token_utils.restrict_token(token_handle)
+        assert restricted_token is not None
+
+        # the group SIDs, except for the integrity one, should remain the same
         original_token_groups = win32security.GetTokenInformation(
             token_handle, win32security.TokenGroups
         )
         restricted_token_groups = win32security.GetTokenInformation(
             restricted_token, win32security.TokenGroups
         )
-        assert original_token_groups == restricted_token_groups
+
+        original_non_integrity_groups = sorted(
+            [
+                (win32security.ConvertSidToStringSid(sid), attrs)
+                for sid, attrs in original_token_groups
+                if not (attrs & ntsecuritycon.SE_GROUP_INTEGRITY)
+            ]
+        )
+        restricted_non_integrity_groups = sorted(
+            [
+                (win32security.ConvertSidToStringSid(sid), attrs)
+                for sid, attrs in restricted_token_groups
+                if not (attrs & ntsecuritycon.SE_GROUP_INTEGRITY)
+            ]
+        )
+
+        assert original_non_integrity_groups == restricted_non_integrity_groups
