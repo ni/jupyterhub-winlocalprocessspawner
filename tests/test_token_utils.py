@@ -56,13 +56,15 @@ def temporary_service_user():
         # Get the user's SID
         sid = win32security.LookupAccountName(None, username)[0]
         policy_handle = win32security.LsaOpenPolicy(None, win32security.POLICY_ALL_ACCESS)
-
-        # Grant SeServiceLogonRight
-        win32security.LsaAddAccountRights(
-            policy_handle,  # Local system
-            sid,
-            [win32security.SE_SERVICE_LOGON_NAME],
-        )
+        try:
+            # Grant SeServiceLogonRight
+            win32security.LsaAddAccountRights(
+                policy_handle,  # Local system
+                sid,
+                [win32security.SE_SERVICE_LOGON_NAME],
+            )
+        finally:
+            win32security.LsaClose(policy_handle)
 
         yield {"username": username, "password": password}
     finally:
