@@ -125,7 +125,7 @@ class TestUnitTokenUtils:
             token_utils.win32security, "CreateRestrictedToken", mock_create_restricted_token
         )
 
-        restricted_token = token_utils.remove_all_token_privileges(1111)
+        restricted_token = token_utils.restrict_token(1111)
         assert restricted_token == 9999
         assert passed_flags & win32security.DISABLE_MAX_PRIVILEGE
 
@@ -148,7 +148,7 @@ class TestUnitTokenUtils:
         )
         monkeypatch.setattr(token_utils.win32api, "GetLastError", mock_get_last_error)
 
-        restricted_token = token_utils.remove_all_token_privileges(1111)
+        restricted_token = token_utils.restrict_token(1111)
         assert restricted_token is None
         mock_logger.error.assert_called()
 
@@ -169,7 +169,7 @@ class TestUnitTokenUtils:
         )
         monkeypatch.setattr(token_utils.win32api, "GetLastError", mock_get_last_error)
 
-        restricted_token = token_utils.remove_all_token_privileges(1111)
+        restricted_token = token_utils.restrict_token(1111)
         assert restricted_token is None
         mock_logger.error.assert_called()
 
@@ -211,7 +211,7 @@ class TestIntegrationTokenUtils:
         mock_logger = mock.Mock()
         monkeypatch.setattr(token_utils, "logger", mock_logger)
 
-        restricted_token = token_utils.remove_all_token_privileges(token)
+        restricted_token = token_utils.restrict_token(token)
 
         assert restricted_token is None
         mock_logger.error.assert_called()
@@ -225,7 +225,7 @@ class TestIntegrationTokenUtils:
         )
         assert token_handle is not None
 
-        restricted_token = token_utils.remove_all_token_privileges(token_handle)
+        restricted_token = token_utils.restrict_token(token_handle)
         assert restricted_token is not None
         privileges = win32security.GetTokenInformation(
             restricted_token.handle, win32security.TokenPrivileges
