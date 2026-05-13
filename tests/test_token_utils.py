@@ -127,7 +127,7 @@ class TestUnitTokenUtils:
 
         restricted_token = token_utils.remove_all_token_privileges(1111)
         assert restricted_token == 9999
-        assert passed_flags | win32security.DISABLE_MAX_PRIVILEGE
+        assert passed_flags & win32security.DISABLE_MAX_PRIVILEGE
 
     def test_remove_all_token_privileges_returns_none_and_logs_error_if_create_restricted_token_excepts(
         self, monkeypatch
