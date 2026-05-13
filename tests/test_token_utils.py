@@ -190,7 +190,7 @@ class TestIntegrationTokenUtils:
         restricted_token = token_utils.restrict_token(token_handle)
         assert restricted_token is not None
         privileges = win32security.GetTokenInformation(
-            restricted_token.handle, win32security.TokenPrivileges
+            restricted_token, win32security.TokenPrivileges
         )
         # only the SeChangeNotifyPrivilege should remain
         assert len(privileges) == 1
