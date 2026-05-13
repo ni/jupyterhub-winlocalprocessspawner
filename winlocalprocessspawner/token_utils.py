@@ -35,9 +35,9 @@ def create_service_token(username: str, password: str) -> pywintypes.HANDLEType:
 
 
 def restrict_token(token_handle: pywintypes.HANDLEType) -> int:
-    """Disables all privileges in the token, except for SeChangeNotifyPrivilege.
+    """Removes token privileges (except SeChangeNotifyPrivilege) and sets medium integrity level.
 
-    Returns a new token, with restricted privileges.
+    Returns a new token, with restricted privileges, and medium integrity level.
     """
     restricted_token = None
 
