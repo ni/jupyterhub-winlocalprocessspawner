@@ -152,7 +152,6 @@ class TestIntegrationTokenUtils:
             temporary_service_user["password"],
         )
 
-        assert token_handle is not None
         token_handle.Close()
 
     def test_create_token_with_valid_username_and_invalid_password_excepts(
@@ -187,10 +186,8 @@ class TestIntegrationTokenUtils:
             temporary_service_user["username"],
             temporary_service_user["password"],
         )
-        assert token_handle is not None
 
         restricted_token = token_utils.restrict_token(token_handle)
-        assert restricted_token is not None
         privileges = win32security.GetTokenInformation(
             restricted_token, win32security.TokenPrivileges
         )
@@ -206,10 +203,8 @@ class TestIntegrationTokenUtils:
             temporary_service_user["username"],
             temporary_service_user["password"],
         )
-        assert token_handle is not None
 
         restricted_token = token_utils.restrict_token(token_handle)
-        assert restricted_token is not None
 
         # check that Medium Integrity Level is properly applied to the token
         restricted_integrity = win32security.GetTokenInformation(
@@ -231,10 +226,8 @@ class TestIntegrationTokenUtils:
             temporary_service_user["username"],
             temporary_service_user["password"],
         )
-        assert token_handle is not None
 
         restricted_token = token_utils.restrict_token(token_handle)
-        assert restricted_token is not None
 
         # the group SIDs, except for the integrity one, should remain the same
         original_token_groups = win32security.GetTokenInformation(
