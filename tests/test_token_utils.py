@@ -4,6 +4,7 @@ Unit tests are under class `TestUnitTokenUtils`.
 Integration tests are under class `TestIntegrationTokenUtils`.
 """
 
+import ctypes
 import secrets
 import string
 
@@ -18,9 +19,19 @@ import winerror
 import winlocalprocessspawner.token_utils as token_utils
 
 
+def _is_admin():
+    """Checks if we are running as Administrator."""
+    return ctypes.windll.shell32.IsUserAnAdmin()
+
+
 @pytest.fixture
 def temporary_service_user():
-    """Sets up a temporary Windows local user that has service logon rights."""
+    """Sets up a temporary Windows local user that has service logon rights.
+
+    Requires pytest to be run with Administrator privileges.
+    """
+    if not _is_admin():
+        raise Exception("This fixture requires Administrator privileges")
 
     def _random_password(length=24):
         special_characters = "!@#$%^&*"
@@ -137,6 +148,7 @@ class TestUnitTokenUtils:
             token_utils.restrict_token(1111)
 
 
+@pytest.mark.requires_admin
 class TestIntegrationTokenUtils:
     """Integration tests for token_utils."""
 
