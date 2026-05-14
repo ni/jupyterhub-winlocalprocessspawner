@@ -5,11 +5,21 @@ WinLocalProcessSpawner spawns single-user servers as local Windows processes. It
 For an example of these architecture, check the [WinAuthenticator](https://github.com/ni/jupyterhub-winauthenticator).
 
 # Local development
+
 - Install `dev-requirements.txt` by running `pip install -r dev-requirements.txt` in your **Python 3.8** virtual environment.
   This contains both dependencies required for this project, as well as testing + linting dependencies.
   The `dev-requirements.txt` file also installs the current project as an editable package, via `-e .`
-- Tests can be run using `pytest .`
-- Linting can be run using `ni-python-styleguide lint winlocalprocessspawner/` and `ni-python-styleguide lint tests`.
+- **Tests** can be run using `pytest .`
+
+  **NOTE:** Some tests require Administrator privileges. These can be skipped using
+  `pytest -m "not requires_admin" .`
+
+  However, they are run in the repository's workflow.
+
+- **Linting** can be run using `ni-python-styleguide lint winlocalprocessspawner/` and `ni-python-styleguide lint tests/`.
+
+  If linting errors are found (e.g. reported by Black), an automated fix can be attempted using:
+  `ni-python-styleguide fix winlocalprocessspawner/` and `ni-python-styleguide fix tests/`
 
 # Installation
 
@@ -28,4 +38,3 @@ To enable, add the following to your jupyterhub file:
 ```
 c.JupyterHub.spawner_class = 'winlocalprocessspawner.WinLocalProcessSpawner'
 ```
-
