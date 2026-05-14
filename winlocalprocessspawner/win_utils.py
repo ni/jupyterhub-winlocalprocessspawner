@@ -10,8 +10,6 @@ import win32api
 import win32con
 import win32event
 import win32process
-import win32security
-import win32service
 
 logger = logging.getLogger("winlocalprocessspawner")
 
@@ -60,6 +58,7 @@ DESKTOP_ALL = (
     | win32con.WRITE_DAC
     | win32con.WRITE_OWNER
 )
+
 
 class PopenAsUser(Popen):
     """Popen implementation that launches new process using the windows auth token provided.
