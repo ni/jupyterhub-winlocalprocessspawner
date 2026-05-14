@@ -10,8 +10,6 @@ import win32api
 import win32con
 import win32event
 import win32process
-import win32security
-import win32service
 
 logger = logging.getLogger("winlocalprocessspawner")
 
@@ -60,79 +58,6 @@ DESKTOP_ALL = (
     | win32con.WRITE_DAC
     | win32con.WRITE_OWNER
 )
-
-
-def setup_sacl(user_group_sid):
-    """Sets up access for the given user to the WinSta (Window Station) and Desktop objects.
-
-    Without this setup, the single user server will likely fail with either Error 0x0000142 or
-    ExitCode -1073741502.
-    """
-    # Set access rights to window station
-    h_win_sta = win32service.OpenWindowStation(
-        "winsta0", False, win32con.READ_CONTROL | win32con.WRITE_DAC
-    )
-    # Get security descriptor by winsta0-handle
-    sec_desc_win_sta = win32security.GetUserObjectSecurity(
-        h_win_sta,
-        win32security.OWNER_SECURITY_INFORMATION
-        | win32security.DACL_SECURITY_INFORMATION
-        | win32con.GROUP_SECURITY_INFORMATION,
-    )
-    # Get DACL from security descriptor
-    dacl_win_sta = sec_desc_win_sta.GetSecurityDescriptorDacl()
-    if dacl_win_sta is None:
-        # Create DACL if not exisiting
-        dacl_win_sta = win32security.ACL()
-    # Add ACEs to DACL for specific user group
-    dacl_win_sta.AddAccessAllowedAce(win32security.ACL_REVISION_DS, GENERIC_ACCESS, user_group_sid)
-    dacl_win_sta.AddAccessAllowedAce(win32security.ACL_REVISION_DS, WINSTA_ALL, user_group_sid)
-    # Set modified DACL for winsta0
-    win32security.SetSecurityInfo(
-        h_win_sta,
-        win32security.SE_WINDOW_OBJECT,
-        win32security.DACL_SECURITY_INFORMATION,
-        None,
-        None,
-        dacl_win_sta,
-        None,
-    )
-
-    # Set access rights to desktop
-    h_desktop = win32service.OpenDesktop(
-        "default",
-        0,
-        False,
-        win32con.READ_CONTROL
-        | win32con.WRITE_DAC
-        | win32con.DESKTOP_WRITEOBJECTS
-        | win32con.DESKTOP_READOBJECTS,
-    )
-    # Get security descriptor by desktop-handle
-    sec_desc_desktop = win32security.GetUserObjectSecurity(
-        h_desktop,
-        win32security.OWNER_SECURITY_INFORMATION
-        | win32security.DACL_SECURITY_INFORMATION
-        | win32con.GROUP_SECURITY_INFORMATION,
-    )
-    # Get DACL from security descriptor
-    dacl_desktop = sec_desc_desktop.GetSecurityDescriptorDacl()
-    if dacl_desktop is None:
-        # create DACL if not exisiting
-        dacl_desktop = win32security.ACL()
-    # Add ACEs to DACL for specific user group
-    dacl_desktop.AddAccessAllowedAce(win32security.ACL_REVISION_DS, GENERIC_ACCESS, user_group_sid)
-    dacl_desktop.AddAccessAllowedAce(win32security.ACL_REVISION_DS, DESKTOP_ALL, user_group_sid)
-    # Set modified DACL for desktop
-    win32security.SetSecurityInfo(
-        h_desktop,
-        win32security.SE_WINDOW_OBJECT,
-        win32security.DACL_SECURITY_INFORMATION,
-        None,
-        None,
-        dacl_desktop,
-        None,
-    )
 
 
 class PopenAsUser(Popen):
@@ -320,10 +245,6 @@ class PopenAsUser(Popen):
             startupinfo.wShowWindow = win32process.SW_HIDE
             comspec = os.environ.get("COMSPEC", "cmd.exe")
             args = '{} /c "{}"'.format(comspec, args)
-
-        if self._token:
-            sid, _ = win32security.GetTokenInformation(self._token, win32security.TokenUser)
-            setup_sacl(sid)
 
         # Start the process
         try:
