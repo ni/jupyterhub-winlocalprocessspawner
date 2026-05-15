@@ -170,6 +170,91 @@ def test_start_uses_userprofile_as_cwd_when_notebook_dir_unset(monkeypatch):
     assert created_token.detached == 1
 
 
+class TestApplyUserEnvOverrides:
+    """Unit tests for WinLocalProcessSpawner._apply_user_env_overrides."""
+
+    def _make_spawner(self):
+        spawner = wps.WinLocalProcessSpawner.__new__(wps.WinLocalProcessSpawner)
+        return spawner
+
+    def test_merges_user_env_when_token_and_user_env_present(self):
+        """User env vars should be merged into env when both token and user_env are given."""
+        spawner = self._make_spawner()
+        env = {"EXISTING": "value"}
+        user_env = {"APPDATA": "C:/Users/alice/AppData", "USERPROFILE": "C:/Users/alice"}
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, user_env, token)
+
+        assert env["APPDATA"] == "C:/Users/alice/AppData"
+        assert env["USERPROFILE"] == "C:/Users/alice"
+        assert env["EXISTING"] == "value"
+
+    def test_does_not_merge_user_env_when_token_is_none(self):
+        """User env vars should not be merged when token is None."""
+        spawner = self._make_spawner()
+        env = {"EXISTING": "value"}
+        user_env = {"APPDATA": "C:/Users/alice/AppData"}
+
+        spawner._apply_user_env_overrides(env, user_env, token=None)
+
+        assert "APPDATA" not in env
+
+    def test_does_not_merge_user_env_when_user_env_is_none(self):
+        """Nothing should be merged when user_env is None."""
+        spawner = self._make_spawner()
+        env = {"EXISTING": "value"}
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, user_env=None, token=token)
+
+        assert env == {"EXISTING": "value"}
+
+    def test_sets_userprofile_to_public_when_appdata_missing(self):
+        """USERPROFILE should be set to PUBLIC when APPDATA is absent from user_env."""
+        spawner = self._make_spawner()
+        env = {"PUBLIC": "C:/Users/Public"}
+        user_env = {"PUBLIC": "C:/Users/Public"}  # no APPDATA
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, user_env, token)
+
+        assert env["USERPROFILE"] == "C:/Users/Public"
+
+    def test_userprofile_falls_back_to_env_public_when_user_env_has_no_public(self):
+        """USERPROFILE fallback should use env PUBLIC if user_env has no PUBLIC key."""
+        spawner = self._make_spawner()
+        env = {"PUBLIC": "C:/Users/Public"}
+        user_env = {"HOMEPATH": "\\Users\\alice"}  # non-empty, no APPDATA, no PUBLIC
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, user_env, token)
+
+        assert env["USERPROFILE"] == "C:/Users/Public"
+
+    def test_userprofile_empty_string_when_no_public_anywhere(self):
+        """USERPROFILE should be empty string when PUBLIC is absent everywhere."""
+        spawner = self._make_spawner()
+        env = {}
+        user_env = {"HOMEPATH": "\\Users\\alice"}  # non-empty, no APPDATA, no PUBLIC
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, user_env, token)
+
+        assert env["USERPROFILE"] == ""
+
+    def test_does_not_override_userprofile_when_appdata_present(self):
+        """USERPROFILE should not be overridden when APPDATA is present in user_env."""
+        spawner = self._make_spawner()
+        env = {}
+        user_env = {"APPDATA": "C:/Users/alice/AppData", "USERPROFILE": "C:/Users/alice"}
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, user_env, token)
+
+        assert env["USERPROFILE"] == "C:/Users/alice"
+
+
 def test_start_falls_back_to_tempdir_when_user_env_load_fails(monkeypatch):
     """Start should use mkdtemp as cwd when user profile environment cannot be loaded."""
     spawner = make_spawner(auth_state=None)
