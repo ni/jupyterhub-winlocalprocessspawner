@@ -44,7 +44,8 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         by the profile block (e.g. custom APPDATA in least-privilege mode).
 
         :param env: The spawner-built environment dict from get_env(). Modified in place.
-        :param profile_env: The Windows user profile env from CreateEnvironmentBlock, or None on failure.
+        :param profile_env: The Windows user profile env from CreateEnvironmentBlock, or None on
+            failure.
         :param token: The Windows auth token, or None.
         """
         if token and profile_env:

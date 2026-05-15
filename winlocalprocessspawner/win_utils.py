@@ -1,6 +1,5 @@
 """Windows process-launching helpers for running JupyterHub single-user servers as another user."""
 
-import ctypes
 import logging
 import os
 import sys

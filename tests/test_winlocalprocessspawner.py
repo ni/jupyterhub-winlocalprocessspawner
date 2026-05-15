@@ -362,7 +362,7 @@ class TestApplyUserEnvOverrides:
         return spawner
 
     def test_merges_profile_env_when_token_and_profile_env_present(self):
-        """Windows profile vars should be merged into env when both token and profile_env are given."""
+        """Windows profile vars are merged into env when both token and profile_env are given."""
         spawner = self._make_spawner()
         env = {"EXISTING": "value"}
         profile_env = {"APPDATA": "C:/Users/alice/AppData", "USERPROFILE": "C:/Users/alice"}
@@ -444,7 +444,9 @@ class TestApplyUserEnvOverrides:
         assert env["USERPROFILE"] == "C:/Users/alice"
 
     def test_base_class_overwrites_env_key_present_in_profile_env(self):
-        """Base implementation merges profile_env on top of env, so conflicting keys are overwritten.
+        """Base implementation merges profile_env on top of env, so conflicting keys are
+        overwritten.
+
 
         This documents the default behaviour that motivates subclasses to override
         _apply_user_env_overrides when they need to protect specific keys.
@@ -489,9 +491,9 @@ class TestApplyUserEnvOverrides:
         then silently replaces it with the standard Roaming path from the
         Windows profile block — demonstrating why the override hook is needed.
         """
-        _PROFILE_DIR = "C:/JupyterHub/profiles/alice"
+        profile_dir = "C:/JupyterHub/profiles/alice"
         spawner = self._make_spawner()
-        env = {"APPDATA": f"{_PROFILE_DIR}/AppData/Roaming"}
+        env = {"APPDATA": f"{profile_dir}/AppData/Roaming"}
         profile_env = {"APPDATA": "C:/Users/alice/AppData/Roaming"}  # from CreateEnvironmentBlock
         token = DummyToken(1)
 
@@ -506,7 +508,7 @@ class TestApplyUserEnvOverrides:
         The override captures the caller-set APPDATA before the merge and
         restores it afterwards, preventing CreateEnvironmentBlock from clobbering it.
         """
-        _PROFILE_DIR = "C:/JupyterHub/profiles/alice"
+        profile_dir = "C:/JupyterHub/profiles/alice"
 
         class LeastPrivilegeSpawner(wps.WinLocalProcessSpawner):
             def _apply_user_env_overrides(self, env, profile_env, token):
@@ -516,10 +518,10 @@ class TestApplyUserEnvOverrides:
                     env["APPDATA"] = appdata
 
         spawner = LeastPrivilegeSpawner.__new__(LeastPrivilegeSpawner)
-        env = {"APPDATA": f"{_PROFILE_DIR}/AppData/Roaming"}
+        env = {"APPDATA": f"{profile_dir}/AppData/Roaming"}
         profile_env = {"APPDATA": "C:/Users/alice/AppData/Roaming"}
         token = DummyToken(1)
 
         spawner._apply_user_env_overrides(env, profile_env, token)
 
-        assert env["APPDATA"] == f"{_PROFILE_DIR}/AppData/Roaming"
+        assert env["APPDATA"] == f"{profile_dir}/AppData/Roaming"
