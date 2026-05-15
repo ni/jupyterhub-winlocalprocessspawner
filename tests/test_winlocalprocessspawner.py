@@ -257,7 +257,7 @@ def test_start_cwd_uses_userprofile_from_profile_env(monkeypatch):
 
 
 def test_start_no_token_profile_env_still_merged_for_cwd(monkeypatch):
-    """cwd uses USERPROFILE from profile_env even when token is None.
+    """CWD uses USERPROFILE from profile_env even when token is None.
 
     env.update(profile_env) is skipped when there is no token, but cwd is
     derived directly from profile_env['USERPROFILE'] so the user's home
@@ -444,9 +444,7 @@ class TestApplyUserEnvOverrides:
         assert env["USERPROFILE"] == "C:/Users/alice"
 
     def test_base_class_overwrites_env_key_present_in_profile_env(self):
-        """Base implementation merges profile_env on top of env, so conflicting keys are
-        overwritten.
-
+        """Base class merges profile_env on top of env, so conflicting keys are overwritten.
 
         This documents the default behaviour that motivates subclasses to override
         _apply_user_env_overrides when they need to protect specific keys.
