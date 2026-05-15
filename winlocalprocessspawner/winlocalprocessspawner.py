@@ -36,6 +36,24 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
                 env[key] = os.environ[key]
         return env
 
+    def _apply_user_env_overrides(self, env, user_env, token):
+        """Apply user environment from CreateEnvironmentBlock to the process env.
+
+        Called after CreateEnvironmentBlock returns. Subclasses can override
+        to customize the environment after the block has been merged.
+
+        :param env: The process environment dict built by get_env().
+        :param user_env: The environment dict from CreateEnvironmentBlock, or None on failure.
+        :param token: The Windows auth token, or None.
+        """
+        if token and user_env:
+            env.update(user_env)
+        if user_env and 'APPDATA' not in user_env:
+            # If APPDATA does not exist, the USERPROFILE points at the default
+            # directory which is not writable. Change the path to public
+            # documents, so at least it's a writable location.
+            env['USERPROFILE'] = user_env.get('PUBLIC', env.get('PUBLIC', ''))
+
     async def start(self):
         """Start the single-user server."""
         self.port = random_port()
@@ -68,22 +86,15 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             user_env = win32profile.CreateEnvironmentBlock(token, False)
         except Exception as exc:
             self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
-        else:
-            # Only load user environment if we hold a valid auth token
-            if token:
-                env.update(user_env)
-            if "APPDATA" not in user_env:
-                # If the 'APPDATA' does not exist, the USERPROFILE points at the default
-                # directory which is not writable. this changes the path over to public
-                # documents, so at least its a writable location.
-                user_env["USERPROFILE"] = user_env["PUBLIC"]
+
+        self._apply_user_env_overrides(env, user_env, token)
 
         # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
         # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
         if self.notebook_dir:
             cwd = os.getcwd()
-        elif env["APPDATA"]:
-            cwd = user_env["USERPROFILE"]
+        elif env.get('APPDATA'):
+            cwd = env.get('USERPROFILE', mkdtemp())
         else:
             # Set CWD to a temp directory, since we failed to load the user profile
             cwd = mkdtemp()
