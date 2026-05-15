@@ -14,18 +14,6 @@ import win32process
 logger = logging.getLogger("winlocalprocessspawner")
 
 
-DWORD = ctypes.c_uint
-HANDLE = DWORD
-BOOL = ctypes.wintypes.BOOL
-
-CLOSEHANDLE = ctypes.windll.kernel32.CloseHandle
-CLOSEHANDLE.argtypes = [HANDLE]
-CLOSEHANDLE.restype = BOOL
-
-GENERIC_ACCESS = (
-    win32con.GENERIC_READ | win32con.GENERIC_WRITE | win32con.GENERIC_EXECUTE | win32con.GENERIC_ALL
-)
-
 WINSTA_ALL = (
     win32con.WINSTA_ACCESSCLIPBOARD
     | win32con.WINSTA_ACCESSGLOBALATOMS
