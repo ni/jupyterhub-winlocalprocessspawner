@@ -36,23 +36,29 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
                 env[key] = os.environ[key]
         return env
 
-    def _apply_user_env_overrides(self, env, user_env, token):
-        """Apply user environment from CreateEnvironmentBlock to the process env.
+    def _apply_user_env_overrides(self, env, profile_env, token):
+        """Merge the Windows user profile environment into the spawner-built env.
 
         Called after CreateEnvironmentBlock returns. Subclasses can override
-        to customize the environment after the block has been merged.
+        this method to protect specific keys in `env` from being overwritten
+        by the profile block (e.g. custom APPDATA in least-privilege mode).
 
-        :param env: The process environment dict built by get_env().
-        :param user_env: The environment dict from CreateEnvironmentBlock, or None on failure.
+        :param env: The spawner-built environment dict from get_env(). Modified in place.
+        :param profile_env: The Windows user profile env from CreateEnvironmentBlock, or None on failure.
         :param token: The Windows auth token, or None.
         """
-        if token and user_env:
-            env.update(user_env)
-        if user_env and 'APPDATA' not in user_env:
-            # If APPDATA does not exist, the USERPROFILE points at the default
-            # directory which is not writable. Change the path to public
-            # documents, so at least it's a writable location.
-            env['USERPROFILE'] = user_env.get('PUBLIC', env.get('PUBLIC', ''))
+        if token and profile_env:
+            # Merge the Windows profile block into the spawner env.
+            # Note: profile_env values overwrite any matching keys already in env.
+            # Subclasses that need to protect specific keys (e.g. APPDATA set to a
+            # custom profile directory) should snapshot those keys before calling
+            # super() and restore them after.
+            env.update(profile_env)
+        if profile_env and 'APPDATA' not in profile_env:
+            # The profile loaded but has no APPDATA — the user profile directory is
+            # not fully set up, so USERPROFILE would point at a non-writable default.
+            # Fall back to the PUBLIC directory, which is always writable.
+            env['USERPROFILE'] = profile_env.get('PUBLIC', env.get('PUBLIC', ''))
 
     async def start(self):
         """Start the single-user server."""
@@ -78,16 +84,16 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             if token:
                 token = pywintypes.HANDLE(token)
 
-        user_env = None
+        profile_env = None
         cwd = None
 
         try:
-            # Will load user variables, if the user profile is loaded
-            user_env = win32profile.CreateEnvironmentBlock(token, False)
+            # Load the Windows user profile environment for the authenticated token.
+            profile_env = win32profile.CreateEnvironmentBlock(token, False)
         except Exception as exc:
             self.log.warning("Failed to load user environment for %s: %s", self.user.name, exc)
 
-        self._apply_user_env_overrides(env, user_env, token)
+        self._apply_user_env_overrides(env, profile_env, token)
 
         # On Posix, the cwd is set to ~ before spawning the singleuser server (preexec_fn).
         # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.

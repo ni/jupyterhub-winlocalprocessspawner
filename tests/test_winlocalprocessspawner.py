@@ -170,6 +170,45 @@ def test_start_uses_userprofile_as_cwd_when_notebook_dir_unset(monkeypatch):
     assert created_token.detached == 1
 
 
+def test_start_preserves_get_env_vars_not_present_in_user_env(monkeypatch):
+    """Vars set by get_env() that are absent from user_env must survive the merge.
+
+    Keys like JUPYTERHUB_API_TOKEN are set by JupyterHub's get_env() and will
+    never appear in a Windows user profile block, so they must not be silently
+    dropped when _apply_user_env_overrides merges user_env into env.
+    """
+    spawner = make_spawner(auth_state={"auth_token": 123})
+    spawner.get_env = lambda: {
+        "JUPYTERHUB_API_TOKEN": "secret-token",
+        "APPDATA": "C:/base/appdata",
+    }
+    handle_factory = DummyHandleFactory()
+
+    popen_calls = []
+
+    def fake_popen(cmd, **kwargs):
+        popen_calls.append((cmd, kwargs))
+        return subprocess.Popen([sys.executable, "-c", "raise SystemExit(0)"])
+
+    monkeypatch.setattr(wps, "random_port", lambda: 9998)
+    monkeypatch.setattr(wps.pywintypes, "HANDLE", handle_factory)
+    monkeypatch.setattr(
+        wps.win32profile,
+        "CreateEnvironmentBlock",
+        lambda token, _inherit: {
+            "APPDATA": "C:/Users/alice/AppData/Roaming",
+            "USERPROFILE": "C:/Users/alice",
+            # JUPYTERHUB_API_TOKEN intentionally absent from the Windows profile block
+        },
+    )
+    monkeypatch.setattr(wps, "PopenAsUser", fake_popen)
+
+    asyncio.run(spawner.start())
+
+    env = popen_calls[0][1]["env"]
+    assert env["JUPYTERHUB_API_TOKEN"] == "secret-token"
+
+
 def test_start_falls_back_to_tempdir_when_user_env_load_fails(monkeypatch):
     """Start should use mkdtemp as cwd when user profile environment cannot be loaded."""
     spawner = make_spawner(auth_state=None)
@@ -239,58 +278,58 @@ class TestApplyUserEnvOverrides:
         spawner = wps.WinLocalProcessSpawner.__new__(wps.WinLocalProcessSpawner)
         return spawner
 
-    def test_merges_user_env_when_token_and_user_env_present(self):
-        """User env vars should be merged into env when both token and user_env are given."""
+    def test_merges_profile_env_when_token_and_profile_env_present(self):
+        """Windows profile vars should be merged into env when both token and profile_env are given."""
         spawner = self._make_spawner()
         env = {"EXISTING": "value"}
-        user_env = {"APPDATA": "C:/Users/alice/AppData", "USERPROFILE": "C:/Users/alice"}
+        profile_env = {"APPDATA": "C:/Users/alice/AppData", "USERPROFILE": "C:/Users/alice"}
         token = DummyToken(1)
 
-        spawner._apply_user_env_overrides(env, user_env, token)
+        spawner._apply_user_env_overrides(env, profile_env, token)
 
         assert env["APPDATA"] == "C:/Users/alice/AppData"
         assert env["USERPROFILE"] == "C:/Users/alice"
         assert env["EXISTING"] == "value"
 
-    def test_does_not_merge_user_env_when_token_is_none(self):
-        """User env vars should not be merged when token is None."""
+    def test_does_not_merge_profile_env_when_token_is_none(self):
+        """Windows profile vars should not be merged when token is None."""
         spawner = self._make_spawner()
         env = {"EXISTING": "value"}
-        user_env = {"APPDATA": "C:/Users/alice/AppData"}
+        profile_env = {"APPDATA": "C:/Users/alice/AppData"}
 
-        spawner._apply_user_env_overrides(env, user_env, token=None)
+        spawner._apply_user_env_overrides(env, profile_env, token=None)
 
         assert "APPDATA" not in env
 
-    def test_does_not_merge_user_env_when_user_env_is_none(self):
-        """Nothing should be merged when user_env is None."""
+    def test_does_not_merge_profile_env_when_profile_env_is_none(self):
+        """Nothing should be merged when profile_env is None."""
         spawner = self._make_spawner()
         env = {"EXISTING": "value"}
         token = DummyToken(1)
 
-        spawner._apply_user_env_overrides(env, user_env=None, token=token)
+        spawner._apply_user_env_overrides(env, profile_env=None, token=token)
 
         assert env == {"EXISTING": "value"}
 
     def test_sets_userprofile_to_public_when_appdata_missing(self):
-        """USERPROFILE should be set to PUBLIC when APPDATA is absent from user_env."""
+        """USERPROFILE should be set to PUBLIC when APPDATA is absent from profile_env."""
         spawner = self._make_spawner()
         env = {"PUBLIC": "C:/Users/Public"}
-        user_env = {"PUBLIC": "C:/Users/Public"}  # no APPDATA
+        profile_env = {"PUBLIC": "C:/Users/Public"}  # no APPDATA
         token = DummyToken(1)
 
-        spawner._apply_user_env_overrides(env, user_env, token)
+        spawner._apply_user_env_overrides(env, profile_env, token)
 
         assert env["USERPROFILE"] == "C:/Users/Public"
 
-    def test_userprofile_falls_back_to_env_public_when_user_env_has_no_public(self):
-        """USERPROFILE fallback should use env PUBLIC if user_env has no PUBLIC key."""
+    def test_userprofile_falls_back_to_env_public_when_profile_env_has_no_public(self):
+        """USERPROFILE fallback should use env PUBLIC if profile_env has no PUBLIC key."""
         spawner = self._make_spawner()
         env = {"PUBLIC": "C:/Users/Public"}
-        user_env = {"HOMEPATH": "\\Users\\alice"}  # non-empty, no APPDATA, no PUBLIC
+        profile_env = {"HOMEPATH": "\\Users\\alice"}  # non-empty, no APPDATA, no PUBLIC
         token = DummyToken(1)
 
-        spawner._apply_user_env_overrides(env, user_env, token)
+        spawner._apply_user_env_overrides(env, profile_env, token)
 
         assert env["USERPROFILE"] == "C:/Users/Public"
 
@@ -298,20 +337,101 @@ class TestApplyUserEnvOverrides:
         """USERPROFILE should be empty string when PUBLIC is absent everywhere."""
         spawner = self._make_spawner()
         env = {}
-        user_env = {"HOMEPATH": "\\Users\\alice"}  # non-empty, no APPDATA, no PUBLIC
+        profile_env = {"HOMEPATH": "\\Users\\alice"}  # non-empty, no APPDATA, no PUBLIC
         token = DummyToken(1)
 
-        spawner._apply_user_env_overrides(env, user_env, token)
+        spawner._apply_user_env_overrides(env, profile_env, token)
 
         assert env["USERPROFILE"] == ""
 
     def test_does_not_override_userprofile_when_appdata_present(self):
-        """USERPROFILE should not be overridden when APPDATA is present in user_env."""
+        """USERPROFILE should not be overridden when APPDATA is present in profile_env."""
         spawner = self._make_spawner()
         env = {}
-        user_env = {"APPDATA": "C:/Users/alice/AppData", "USERPROFILE": "C:/Users/alice"}
+        profile_env = {"APPDATA": "C:/Users/alice/AppData", "USERPROFILE": "C:/Users/alice"}
         token = DummyToken(1)
 
-        spawner._apply_user_env_overrides(env, user_env, token)
+        spawner._apply_user_env_overrides(env, profile_env, token)
 
         assert env["USERPROFILE"] == "C:/Users/alice"
+
+    def test_base_class_overwrites_env_key_present_in_profile_env(self):
+        """Base implementation merges profile_env on top of env, so conflicting keys are overwritten.
+
+        This documents the default behaviour that motivates subclasses to override
+        _apply_user_env_overrides when they need to protect specific keys.
+        """
+        spawner = self._make_spawner()
+        env = {"JUPYTERHUB_API_TOKEN": "secret-token"}
+        profile_env = {"JUPYTERHUB_API_TOKEN": "value-from-windows-profile"}
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, profile_env, token)
+
+        assert env["JUPYTERHUB_API_TOKEN"] == "value-from-windows-profile"
+
+    def test_subclass_can_protect_keys_from_profile_env_overwrite(self):
+        """A subclass override of _apply_user_env_overrides can protect specific keys.
+
+        Because _apply_user_env_overrides is a hook, subclasses can restore
+        critical values (e.g. JUPYTERHUB_* vars) after the merge so the Windows
+        profile block cannot replace them.
+        """
+
+        class ProtectiveSpawner(wps.WinLocalProcessSpawner):
+            def _apply_user_env_overrides(self, env, profile_env, token):
+                protected = {k: v for k, v in env.items() if k.startswith("JUPYTERHUB_")}
+                super()._apply_user_env_overrides(env, profile_env, token)
+                env.update(protected)
+
+        spawner = ProtectiveSpawner.__new__(ProtectiveSpawner)
+        env = {"JUPYTERHUB_API_TOKEN": "secret-token"}
+        profile_env = {"JUPYTERHUB_API_TOKEN": "value-from-windows-profile"}
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, profile_env, token)
+
+        assert env["JUPYTERHUB_API_TOKEN"] == "secret-token"
+
+    def test_base_class_overwrites_appdata_set_by_least_privilege_subclass(self):
+        """Base implementation overwrites APPDATA set before the merge.
+
+        In least-privilege mode a subclass sets a custom APPDATA path before
+        start() calls CreateEnvironmentBlock. The base env.update(profile_env)
+        then silently replaces it with the standard Roaming path from the
+        Windows profile block — demonstrating why the override hook is needed.
+        """
+        _PROFILE_DIR = "C:/JupyterHub/profiles/alice"
+        spawner = self._make_spawner()
+        env = {"APPDATA": f"{_PROFILE_DIR}/AppData/Roaming"}
+        profile_env = {"APPDATA": "C:/Users/alice/AppData/Roaming"}  # from CreateEnvironmentBlock
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, profile_env, token)
+
+        # base class overwrites — the custom path is lost
+        assert env["APPDATA"] == "C:/Users/alice/AppData/Roaming"
+
+    def test_subclass_can_protect_appdata_from_profile_env_overwrite(self):
+        """A subclass override can preserve a custom APPDATA set in least-privilege mode.
+
+        The override captures the caller-set APPDATA before the merge and
+        restores it afterwards, preventing CreateEnvironmentBlock from clobbering it.
+        """
+        _PROFILE_DIR = "C:/JupyterHub/profiles/alice"
+
+        class LeastPrivilegeSpawner(wps.WinLocalProcessSpawner):
+            def _apply_user_env_overrides(self, env, profile_env, token):
+                appdata = env.get("APPDATA")
+                super()._apply_user_env_overrides(env, profile_env, token)
+                if appdata:
+                    env["APPDATA"] = appdata
+
+        spawner = LeastPrivilegeSpawner.__new__(LeastPrivilegeSpawner)
+        env = {"APPDATA": f"{_PROFILE_DIR}/AppData/Roaming"}
+        profile_env = {"APPDATA": "C:/Users/alice/AppData/Roaming"}
+        token = DummyToken(1)
+
+        spawner._apply_user_env_overrides(env, profile_env, token)
+
+        assert env["APPDATA"] == f"{_PROFILE_DIR}/AppData/Roaming"

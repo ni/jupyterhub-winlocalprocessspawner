@@ -46,6 +46,7 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+jupyterhub_cookie_secret
 *.cover
 *.py,cover
 .hypothesis/
@@ -104,6 +105,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.vscode
 env/
 venv/
 ENV/
