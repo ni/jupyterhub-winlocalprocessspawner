@@ -307,4 +307,4 @@ class PopenAsUser(Popen):
             self._handle = Handle(hp.Detach())
             self.pid = pid
         finally:
-            CLOSEHANDLE(ht)
+            win32api.CloseHandle(ht)

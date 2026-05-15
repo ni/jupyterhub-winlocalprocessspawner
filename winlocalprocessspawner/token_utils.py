@@ -6,7 +6,7 @@ import win32api
 import win32security
 
 
-def create_service_token(username: str, password: str) -> pywintypes.HANDLEType:
+def create_service_token(username: str, password: str) -> "pywintypes.PyHANDLE":
     """Logs on a Windows Service user, given its password, and returns a handle to the token."""
     token_handle = win32security.LogonUser(
         username,
@@ -19,7 +19,7 @@ def create_service_token(username: str, password: str) -> pywintypes.HANDLEType:
     return token_handle
 
 
-def restrict_token(token_handle: pywintypes.HANDLEType) -> int:
+def restrict_token(token_handle: "pywintypes.PyHANDLE") -> "pywintypes.PyHANDLE":
     """Removes token privileges (except SeChangeNotifyPrivilege) and sets medium integrity level.
 
     Returns a new token, with restricted privileges, and medium integrity level.
