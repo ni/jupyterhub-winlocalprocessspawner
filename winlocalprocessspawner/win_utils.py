@@ -14,40 +14,6 @@ import win32process
 logger = logging.getLogger("winlocalprocessspawner")
 
 
-WINSTA_ALL = (
-    win32con.WINSTA_ACCESSCLIPBOARD
-    | win32con.WINSTA_ACCESSGLOBALATOMS
-    | win32con.WINSTA_CREATEDESKTOP
-    | win32con.WINSTA_ENUMDESKTOPS
-    | win32con.WINSTA_ENUMERATE
-    | win32con.WINSTA_EXITWINDOWS
-    | win32con.WINSTA_READATTRIBUTES
-    | win32con.WINSTA_READSCREEN
-    | win32con.WINSTA_WRITEATTRIBUTES
-    | win32con.DELETE
-    | win32con.READ_CONTROL
-    | win32con.WRITE_DAC
-    | win32con.WRITE_OWNER
-)
-
-
-DESKTOP_ALL = (
-    win32con.DESKTOP_CREATEMENU
-    | win32con.DESKTOP_CREATEWINDOW
-    | win32con.DESKTOP_ENUMERATE
-    | win32con.DESKTOP_HOOKCONTROL
-    | win32con.DESKTOP_JOURNALPLAYBACK
-    | win32con.DESKTOP_JOURNALRECORD
-    | win32con.DESKTOP_READOBJECTS
-    | win32con.DESKTOP_SWITCHDESKTOP
-    | win32con.DESKTOP_WRITEOBJECTS
-    | win32con.DELETE
-    | win32con.READ_CONTROL
-    | win32con.WRITE_DAC
-    | win32con.WRITE_OWNER
-)
-
-
 class PopenAsUser(Popen):
     """Popen implementation that launches new process using the windows auth token provided.
 
