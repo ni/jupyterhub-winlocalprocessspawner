@@ -209,6 +209,52 @@ def test_start_preserves_get_env_vars_not_present_in_user_env(monkeypatch):
     assert env["JUPYTERHUB_API_TOKEN"] == "secret-token"
 
 
+def test_start_cwd_uses_userprofile_from_env_after_overrides(monkeypatch):
+    """start() derives cwd from env['USERPROFILE'] after _apply_user_env_overrides runs.
+
+    If a subclass overrides _apply_user_env_overrides to protect USERPROFILE
+    (e.g. a custom least-privilege path), that protected value must be used as
+    cwd — not the raw value from the Windows profile block.
+    """
+
+    class ProtectiveSpawner(wps.WinLocalProcessSpawner):
+        def _apply_user_env_overrides(self, env, profile_env, token):
+            userprofile = env.get("USERPROFILE")
+            super()._apply_user_env_overrides(env, profile_env, token)
+            if userprofile:
+                env["USERPROFILE"] = userprofile
+
+    spawner = make_spawner(auth_state={"auth_token": 123})
+    spawner.__class__ = ProtectiveSpawner
+    spawner.get_env = lambda: {
+        "APPDATA": "C:/base/appdata",
+        "USERPROFILE": "C:/JupyterHub/profiles/alice",
+    }
+    handle_factory = DummyHandleFactory()
+
+    popen_calls = []
+
+    def fake_popen(cmd, **kwargs):
+        popen_calls.append((cmd, kwargs))
+        return subprocess.Popen([sys.executable, "-c", "raise SystemExit(0)"])
+
+    monkeypatch.setattr(wps, "random_port", lambda: 9997)
+    monkeypatch.setattr(wps.pywintypes, "HANDLE", handle_factory)
+    monkeypatch.setattr(
+        wps.win32profile,
+        "CreateEnvironmentBlock",
+        lambda token, _inherit: {
+            "APPDATA": "C:/Users/alice/AppData/Roaming",
+            "USERPROFILE": "C:/Users/alice",  # would overwrite the custom path
+        },
+    )
+    monkeypatch.setattr(wps, "PopenAsUser", fake_popen)
+
+    asyncio.run(spawner.start())
+
+    assert popen_calls[0][1]["cwd"] == "C:/JupyterHub/profiles/alice"
+
+
 def test_start_falls_back_to_tempdir_when_user_env_load_fails(monkeypatch):
     """Start should use mkdtemp as cwd when user profile environment cannot be loaded."""
     spawner = make_spawner(auth_state=None)
