@@ -170,6 +170,68 @@ def test_start_uses_userprofile_as_cwd_when_notebook_dir_unset(monkeypatch):
     assert created_token.detached == 1
 
 
+def test_start_falls_back_to_tempdir_when_user_env_load_fails(monkeypatch):
+    """Start should use mkdtemp as cwd when user profile environment cannot be loaded."""
+    spawner = make_spawner(auth_state=None)
+    spawner.get_env = lambda: {"APPDATA": "", "JUPYTERHUB_API_TOKEN": "token"}
+
+    popen_calls = []
+
+    def fake_popen(cmd, **kwargs):
+        popen_calls.append((cmd, kwargs))
+        return subprocess.Popen([sys.executable, "-c", "raise SystemExit(0)"])
+
+    monkeypatch.setattr(wps, "random_port", lambda: 10001)
+    monkeypatch.setattr(
+        wps.win32profile,
+        "CreateEnvironmentBlock",
+        lambda token, _inherit: (_ for _ in ()).throw(RuntimeError("no profile")),
+    )
+    monkeypatch.setattr(wps, "mkdtemp", lambda: "C:/tmp/fallback-dir")
+    monkeypatch.setattr(wps, "PopenAsUser", fake_popen)
+
+    ip, port = asyncio.run(spawner.start())
+
+    assert (ip, port) == ("127.0.0.1", 10001)
+    assert popen_calls[0][1]["cwd"] == "C:/tmp/fallback-dir"
+
+    warning_logs = [entry for entry in spawner.log.messages if entry[0] == "warning"]
+    assert warning_logs
+    assert "Failed to load user environment" in warning_logs[0][1]
+
+
+def test_start_permission_error_logs_and_detaches_token(monkeypatch):
+    """Start should log permission errors and detach token before re-raising."""
+    spawner = make_spawner(auth_state={"auth_token": 456})
+    handle_factory = DummyHandleFactory()
+
+    monkeypatch.setattr(wps, "random_port", lambda: 7777)
+    monkeypatch.setattr(wps.pywintypes, "HANDLE", handle_factory)
+    monkeypatch.setattr(
+        wps.win32profile,
+        "CreateEnvironmentBlock",
+        lambda token, _inherit: {
+            "APPDATA": "C:/Users/alice/AppData/Roaming",
+            "USERPROFILE": "C:/Users/alice",
+            "PUBLIC": "C:/Users/Public",
+        },
+    )
+    monkeypatch.setattr(
+        wps, "PopenAsUser", lambda *args, **kwargs: (_ for _ in ()).throw(PermissionError())
+    )
+    monkeypatch.setattr(wps.shutil, "which", lambda script: f"C:/resolved/{script}")
+
+    with pytest.raises(PermissionError):
+        asyncio.run(spawner.start())
+
+    error_logs = [entry for entry in spawner.log.messages if entry[0] == "error"]
+    assert error_logs
+    assert "Permission denied trying to run" in error_logs[0][1]
+
+    created_token = handle_factory.created[0]
+    assert created_token.detached == 1
+
+
 class TestApplyUserEnvOverrides:
     """Unit tests for WinLocalProcessSpawner._apply_user_env_overrides."""
 
@@ -253,65 +315,3 @@ class TestApplyUserEnvOverrides:
         spawner._apply_user_env_overrides(env, user_env, token)
 
         assert env["USERPROFILE"] == "C:/Users/alice"
-
-
-def test_start_falls_back_to_tempdir_when_user_env_load_fails(monkeypatch):
-    """Start should use mkdtemp as cwd when user profile environment cannot be loaded."""
-    spawner = make_spawner(auth_state=None)
-    spawner.get_env = lambda: {"APPDATA": "", "JUPYTERHUB_API_TOKEN": "token"}
-
-    popen_calls = []
-
-    def fake_popen(cmd, **kwargs):
-        popen_calls.append((cmd, kwargs))
-        return subprocess.Popen([sys.executable, "-c", "raise SystemExit(0)"])
-
-    monkeypatch.setattr(wps, "random_port", lambda: 10001)
-    monkeypatch.setattr(
-        wps.win32profile,
-        "CreateEnvironmentBlock",
-        lambda token, _inherit: (_ for _ in ()).throw(RuntimeError("no profile")),
-    )
-    monkeypatch.setattr(wps, "mkdtemp", lambda: "C:/tmp/fallback-dir")
-    monkeypatch.setattr(wps, "PopenAsUser", fake_popen)
-
-    ip, port = asyncio.run(spawner.start())
-
-    assert (ip, port) == ("127.0.0.1", 10001)
-    assert popen_calls[0][1]["cwd"] == "C:/tmp/fallback-dir"
-
-    warning_logs = [entry for entry in spawner.log.messages if entry[0] == "warning"]
-    assert warning_logs
-    assert "Failed to load user environment" in warning_logs[0][1]
-
-
-def test_start_permission_error_logs_and_detaches_token(monkeypatch):
-    """Start should log permission errors and detach token before re-raising."""
-    spawner = make_spawner(auth_state={"auth_token": 456})
-    handle_factory = DummyHandleFactory()
-
-    monkeypatch.setattr(wps, "random_port", lambda: 7777)
-    monkeypatch.setattr(wps.pywintypes, "HANDLE", handle_factory)
-    monkeypatch.setattr(
-        wps.win32profile,
-        "CreateEnvironmentBlock",
-        lambda token, _inherit: {
-            "APPDATA": "C:/Users/alice/AppData/Roaming",
-            "USERPROFILE": "C:/Users/alice",
-            "PUBLIC": "C:/Users/Public",
-        },
-    )
-    monkeypatch.setattr(
-        wps, "PopenAsUser", lambda *args, **kwargs: (_ for _ in ()).throw(PermissionError())
-    )
-    monkeypatch.setattr(wps.shutil, "which", lambda script: f"C:/resolved/{script}")
-
-    with pytest.raises(PermissionError):
-        asyncio.run(spawner.start())
-
-    error_logs = [entry for entry in spawner.log.messages if entry[0] == "error"]
-    assert error_logs
-    assert "Permission denied trying to run" in error_logs[0][1]
-
-    created_token = handle_factory.created[0]
-    assert created_token.detached == 1
