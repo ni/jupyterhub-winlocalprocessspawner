@@ -1,6 +1,5 @@
 """Windows process-launching helpers for running JupyterHub single-user servers as another user."""
 
-import ctypes
 import logging
 import os
 import sys
@@ -12,52 +11,6 @@ import win32event
 import win32process
 
 logger = logging.getLogger("winlocalprocessspawner")
-
-
-DWORD = ctypes.c_uint
-HANDLE = DWORD
-BOOL = ctypes.wintypes.BOOL
-
-CLOSEHANDLE = ctypes.windll.kernel32.CloseHandle
-CLOSEHANDLE.argtypes = [HANDLE]
-CLOSEHANDLE.restype = BOOL
-
-GENERIC_ACCESS = (
-    win32con.GENERIC_READ | win32con.GENERIC_WRITE | win32con.GENERIC_EXECUTE | win32con.GENERIC_ALL
-)
-
-WINSTA_ALL = (
-    win32con.WINSTA_ACCESSCLIPBOARD
-    | win32con.WINSTA_ACCESSGLOBALATOMS
-    | win32con.WINSTA_CREATEDESKTOP
-    | win32con.WINSTA_ENUMDESKTOPS
-    | win32con.WINSTA_ENUMERATE
-    | win32con.WINSTA_EXITWINDOWS
-    | win32con.WINSTA_READATTRIBUTES
-    | win32con.WINSTA_READSCREEN
-    | win32con.WINSTA_WRITEATTRIBUTES
-    | win32con.DELETE
-    | win32con.READ_CONTROL
-    | win32con.WRITE_DAC
-    | win32con.WRITE_OWNER
-)
-
-
-DESKTOP_ALL = (
-    win32con.DESKTOP_CREATEMENU
-    | win32con.DESKTOP_CREATEWINDOW
-    | win32con.DESKTOP_ENUMERATE
-    | win32con.DESKTOP_HOOKCONTROL
-    | win32con.DESKTOP_JOURNALPLAYBACK
-    | win32con.DESKTOP_JOURNALRECORD
-    | win32con.DESKTOP_READOBJECTS
-    | win32con.DESKTOP_SWITCHDESKTOP
-    | win32con.DESKTOP_WRITEOBJECTS
-    | win32con.DELETE
-    | win32con.READ_CONTROL
-    | win32con.WRITE_DAC
-    | win32con.WRITE_OWNER
-)
 
 
 class PopenAsUser(Popen):
@@ -307,4 +260,4 @@ class PopenAsUser(Popen):
             self._handle = Handle(hp.Detach())
             self.pid = pid
         finally:
-            CLOSEHANDLE(ht)
+            win32api.CloseHandle(ht)
