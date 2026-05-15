@@ -209,12 +209,12 @@ def test_start_preserves_get_env_vars_not_present_in_user_env(monkeypatch):
     assert env["JUPYTERHUB_API_TOKEN"] == "secret-token"
 
 
-def test_start_cwd_uses_userprofile_from_env_after_overrides(monkeypatch):
-    """start() derives cwd from env['USERPROFILE'] after _apply_user_env_overrides runs.
+def test_start_cwd_uses_userprofile_from_profile_env(monkeypatch):
+    """When token is present, cwd comes from env['USERPROFILE'] after the merge.
 
-    If a subclass overrides _apply_user_env_overrides to protect USERPROFILE
-    (e.g. a custom least-privilege path), that protected value must be used as
-    cwd — not the raw value from the Windows profile block.
+    A subclass that protects env['USERPROFILE'] (e.g. least-privilege custom path)
+    will have that protected value used as cwd, since cwd is read from env
+    (post-merge) when a token is present.
     """
 
     class ProtectiveSpawner(wps.WinLocalProcessSpawner):
@@ -245,14 +245,51 @@ def test_start_cwd_uses_userprofile_from_env_after_overrides(monkeypatch):
         "CreateEnvironmentBlock",
         lambda token, _inherit: {
             "APPDATA": "C:/Users/alice/AppData/Roaming",
-            "USERPROFILE": "C:/Users/alice",  # would overwrite the custom path
+            "USERPROFILE": "C:/Users/alice",
         },
     )
     monkeypatch.setattr(wps, "PopenAsUser", fake_popen)
 
     asyncio.run(spawner.start())
 
+    # token present → cwd from env after merge → subclass-protected value wins
     assert popen_calls[0][1]["cwd"] == "C:/JupyterHub/profiles/alice"
+
+
+def test_start_no_token_profile_env_still_merged_for_cwd(monkeypatch):
+    """cwd uses USERPROFILE from profile_env even when token is None.
+
+    env.update(profile_env) is skipped when there is no token, but cwd is
+    derived directly from profile_env['USERPROFILE'] so the user's home
+    directory is still used as the working directory.
+    """
+    spawner = make_spawner(auth_state=None)
+    spawner.get_env = lambda: {
+        "APPDATA": "C:/ServiceAccount/AppData",
+        "USERPROFILE": "C:/ServiceAccount",
+    }
+
+    popen_calls = []
+
+    def fake_popen(cmd, **kwargs):
+        popen_calls.append((cmd, kwargs))
+        return subprocess.Popen([sys.executable, "-c", "raise SystemExit(0)"])
+
+    monkeypatch.setattr(wps, "random_port", lambda: 9996)
+    monkeypatch.setattr(
+        wps.win32profile,
+        "CreateEnvironmentBlock",
+        lambda token, _inherit: {
+            "APPDATA": "C:/Users/alice/AppData/Roaming",
+            "USERPROFILE": "C:/Users/alice",
+        },
+    )
+    monkeypatch.setattr(wps, "PopenAsUser", fake_popen)
+
+    asyncio.run(spawner.start())
+
+    # profile_env is merged even with no token, so cwd uses the profile USERPROFILE.
+    assert popen_calls[0][1]["cwd"] == "C:/Users/alice"
 
 
 def test_start_falls_back_to_tempdir_when_user_env_load_fails(monkeypatch):
@@ -337,14 +374,19 @@ class TestApplyUserEnvOverrides:
         assert env["USERPROFILE"] == "C:/Users/alice"
         assert env["EXISTING"] == "value"
 
-    def test_does_not_merge_profile_env_when_token_is_none(self):
-        """Windows profile vars should not be merged when token is None."""
+    def test_merges_profile_env_regardless_of_token(self):
+        """profile_env is merged into env only when token is present.
+
+        When token is None the merge is skipped, but cwd is still read
+        directly from profile_env so the user's USERPROFILE is used.
+        """
         spawner = self._make_spawner()
         env = {"EXISTING": "value"}
         profile_env = {"APPDATA": "C:/Users/alice/AppData"}
 
         spawner._apply_user_env_overrides(env, profile_env, token=None)
 
+        # merge skipped — APPDATA not copied into env
         assert "APPDATA" not in env
 
     def test_does_not_merge_profile_env_when_profile_env_is_none(self):

@@ -100,7 +100,12 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         if self.notebook_dir:
             cwd = os.getcwd()
         elif env.get("APPDATA"):
-            cwd = env.get("USERPROFILE", mkdtemp())
+            if token:
+                # Merge happened — USERPROFILE in env reflects any subclass overrides.
+                cwd = env.get("USERPROFILE", mkdtemp())
+            else:
+                # Merge was skipped — read USERPROFILE directly from the profile block.
+                cwd = profile_env.get("USERPROFILE", mkdtemp()) if profile_env else mkdtemp()
         else:
             # Set CWD to a temp directory, since we failed to load the user profile
             cwd = mkdtemp()
