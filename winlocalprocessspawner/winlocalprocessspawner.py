@@ -54,11 +54,11 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
             # custom profile directory) should snapshot those keys before calling
             # super() and restore them after.
             env.update(profile_env)
-        if profile_env and 'APPDATA' not in profile_env:
+        if profile_env and "APPDATA" not in profile_env:
             # The profile loaded but has no APPDATA — the user profile directory is
             # not fully set up, so USERPROFILE would point at a non-writable default.
             # Fall back to the PUBLIC directory, which is always writable.
-            env['USERPROFILE'] = profile_env.get('PUBLIC', env.get('PUBLIC', ''))
+            env["USERPROFILE"] = profile_env.get("PUBLIC", env.get("PUBLIC", ""))
 
     async def start(self):
         """Start the single-user server."""
@@ -99,8 +99,8 @@ class WinLocalProcessSpawner(LocalProcessSpawner):
         # Windows Popen doesn't have preexec_fn support, so we need to set cwd directly.
         if self.notebook_dir:
             cwd = os.getcwd()
-        elif env.get('APPDATA'):
-            cwd = env.get('USERPROFILE', mkdtemp())
+        elif env.get("APPDATA"):
+            cwd = env.get("USERPROFILE", mkdtemp())
         else:
             # Set CWD to a temp directory, since we failed to load the user profile
             cwd = mkdtemp()
